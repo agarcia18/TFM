@@ -1,3 +1,3 @@
-# Máster en Bioinformática y Bioestadística (UOC) 
-## Trabajo final máster
-Shiny web app for extrachrimosomical circular DNA visualization
+# Shiny App for eccDNA genomic data visualization
+## Bioinformatics & Bioestatistics UOC master's final project 
+
