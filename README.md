@@ -3,4 +3,4 @@
 ------------
 
 ### Work plan
-![](https://github.com/agarcia18/eccDNA/gannt.png)
+![](gannt.png)
