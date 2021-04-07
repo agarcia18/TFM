@@ -1,0 +1,65 @@
+---
+title: "TFM"
+author: "Ainhoa Garcia"
+date: "7/4/2021"
+output: html_document
+---
+
+```{r}
+if(!(require(tidyverse))) install.packages("tidyverse")
+require(tidyverse)
+```
+
+
+```{r}
+circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315424_unknown_circle.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
+```
+```{r}
+# Change names
+names(circ)[1] <- "chr"
+names(circ)[2] <- "start"
+names(circ)[3] <- "end"
+names(circ)[4] <- "discordant_reads"
+names(circ)[5] <- "split_reads"
+names(circ)[6] <- "score"
+names(circ)[7] <- "coverage_mean"
+names(circ)[8] <- "coverage_sd"
+names(circ)[9] <- "coverage_start"
+names(circ)[10] <- "coverage_end"
+names(circ)[11] <- "coverage_cont"
+```
+
+```{r}
+# Add circle number
+circ <- circ %>% mutate(circle_number = 1:n()) %>% select(circle_number, everything())
+
+```
+
+```{r}
+# Set chr as factor
+circ$chr <- substr(circ$chr, start = 1, stop = 5)
+circ$chr<-str_remove(circ$chr,"_")
+circ$chr<-str_remove(circ$chr,"chr")
+circ$chr <- factor(circ$chr, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+```
+```{r}
+# Add quality levels (score < 10 = bad, score < 50 = low, score < 200 = medium, score > 200 = high)
+circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("bad","low", "medium", "high"),right = FALSE)
+
+# Add size of circle (number of bp)
+size_bp <- circ$end - circ$start
+circ<- add_column(circ,size_bp)
+head(circ)
+```
+
+```{r}
+circ %>% select(quality)%>% distinct() %>% arrange(quality)
+```
+```{r}
+total_circles<-circ %>% count()
+p_bad <-((circ %>% filter (quality=="bad") %>% count())/total_circles)*100
+p_low <- ((circ %>% filter(quality=="low") %>% count())/total_circles)*100
+p_medium <- ((circ %>% filter(quality=="medium") %>% count())/total_circles)*100
+p_high <- ((circ %>% filter(quality=="high") %>% count())/total_circles)*100
+```
+
