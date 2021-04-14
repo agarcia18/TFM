@@ -14,6 +14,7 @@ require(tidyverse)
 ```{r}
 circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315424_unknown_circle.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
 ```
+
 ```{r}
 # Change names
 names(circ)[1] <- "chr"
@@ -44,7 +45,7 @@ circ$chr <- factor(circ$chr, levels = c("1","2","3","4","5","6","7","8","9","10"
 ```
 ```{r}
 # Add quality levels (score < 10 = bad, score < 50 = low, score < 200 = medium, score > 200 = high)
-circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("bad","low", "medium", "high"),right = FALSE)
+circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("bad","low", "medium", "good"),right = FALSE)
 
 # Add size of circle (number of bp)
 size_bp <- circ$end - circ$start
@@ -53,13 +54,90 @@ head(circ)
 ```
 
 ```{r}
-circ %>% select(quality)%>% distinct() %>% arrange(quality)
-```
-```{r}
 total_circles<-circ %>% count()
 p_bad <-((circ %>% filter (quality=="bad") %>% count())/total_circles)*100
 p_low <- ((circ %>% filter(quality=="low") %>% count())/total_circles)*100
 p_medium <- ((circ %>% filter(quality=="medium") %>% count())/total_circles)*100
-p_high <- ((circ %>% filter(quality=="high") %>% count())/total_circles)*100
+p_good <- ((circ %>% filter(quality=="good") %>% count())/total_circles)*100
+```
+
+```{r}
+circ %>% select(chr)%>% distinct() %>% arrange(chr)
+```
+
+```{r}
+circ_medium <- circ %>% filter(quality=="medium")
+circ_good <- circ %>% filter (quality=="good")
+
+filter_circ<- union(circ_medium,circ_good)
+```
+
+```{r}
+ggplot(filter_circ, aes( x = size_bp, y = coverage_cont ,color=quality))+
+  geom_point()
+
+```
+
+
+
+```{r}
+ggplot(filter_circ, aes( x = size_bp, y = coverage_cont,color=discordant_reads))+
+    geom_point()
+```
+
+```{r}
+library(ggplot2)
+
+library(ggiraph)
+
+g <- ggplot(circ, aes( x = size_bp, y = coverage_cont))
+
+my_gg <- g + geom_point_interactive(aes(tooltip = split_reads), size = 2)
+
+ggiraph(code = print(my_gg) )
+
+my_gg <- g + geom_point_interactive(aes(tooltip = circle), size = 2)
+ggiraph(code = print(my_gg), hover_css = "cursor:pointer;fill:red;stroke:red;")
+```
+
+```{r}
+a<- circ_good %>%
+  filter(discordant_reads > 5 | discordant_reads < 100)
+```
+
+```{r}
+library(circlize)
+circos.par("track.height" = 0.4)
+
+# Create data
+data = data.frame(
+    factor = sample(letters[1:8], 1000, replace = TRUE),
+    x = rnorm(1000),
+    y = runif(1000)
+    )
+
+# Step1: Initialise the chart giving factor and x-axis.
+circos.initialize( factors=data$factor, x=data$x )
+
+# Step 2: Build the regions.
+circos.trackPlotRegion(factors = data$factor, y = data$y, panel.fun = function(x, y) {
+    circos.axis()
+    })
+
+# Step 3: Add points
+circos.trackLines(data$factor, data$x[order(data$x)], data$y[order(data$x)], col = rgb(0.1,0.5,0.8,0.3), lwd=2, type="h")
+```
+
+```{r}
+ ggplot(circ, aes( x = size_bp, y = coverage_cont))+
+      geom_point(colour="#E84E84")+
+  geom_point(colour="white",size=0.6)+
+      theme_bw() + theme(legend.position =c(0.15,0.85),legend.title = element_blank(),panel.border = element_blank(), panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+```
+```{r}
+circ %>% filter(quality=="Good")
+```
+```{r}
+
 ```
 

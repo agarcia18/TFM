@@ -18,6 +18,20 @@ names(circ)[9] <- "coverage_start"
 names(circ)[10] <- "coverage_end"
 names(circ)[11] <- "coverage_cont"
 
+# Set chromosome as factor
+circ$chr <- substr(circ$chr, start = 1, stop = 5)
+circ$chr<-str_remove(circ$chr,"_")
+circ$chr<-str_remove(circ$chr,"chr")
+circ$chr <- factor(circ$chr, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+
+# Add quality levels (score < 10 = bad, score < 50 = low, score < 200 = medium, score > 200 = high)
+circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("bad","low", "medium", "high"),right = FALSE)
+
+# Add size of circle (number of bp)
+size_bp <- circ$end - circ$start
+circ<- add_column(circ,size_bp)
+head(circ)
+
 # Add circle number
 circ <- circ %>% mutate(circle_number = 1:n()) %>% select(circle_number, everything())
 
