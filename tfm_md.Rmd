@@ -9,10 +9,21 @@ output: html_document
 if(!(require(tidyverse))) install.packages("tidyverse")
 require(tidyverse)
 ```
+```{r}
+# Change names
+ names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+```
+
+
 
 
 ```{r}
 circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315424_unknown_circle.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
+names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+ # Add quality levels (score < 10 = Bad, score < 50 = Low, score < 200 = Medium, score > 200 = Good)
+    circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+
+    circ %>% group_by (quality) %>% summarise((count = n() / nrow(.))*100)
 ```
 
 ```{r}
@@ -72,12 +83,6 @@ circ_good <- circ %>% filter (quality=="good")
 filter_circ<- union(circ_medium,circ_good)
 ```
 
-```{r}
-ggplot(filter_circ, aes( x = size_bp, y = coverage_cont ,color=quality))+
-  geom_point()
-
-```
-
 
 
 ```{r}
@@ -92,52 +97,128 @@ library(ggiraph)
 
 g <- ggplot(circ, aes( x = size_bp, y = coverage_cont))
 
-my_gg <- g + geom_point_interactive(aes(tooltip = split_reads), size = 2)
-
-ggiraph(code = print(my_gg) )
-
-my_gg <- g + geom_point_interactive(aes(tooltip = circle), size = 2)
+my_gg <- g + geom_point_interactive(aes(tooltip = split), size = 2)
 ggiraph(code = print(my_gg), hover_css = "cursor:pointer;fill:red;stroke:red;")
 ```
 
 ```{r}
-a<- circ_good %>%
-  filter(discordant_reads > 5 | discordant_reads < 100)
+circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315431_unknown_circle.bed",header = FALSE))
+circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+
+circ %>% group_by(quality) %>%count()
 ```
 
 ```{r}
-library(circlize)
-circos.par("track.height" = 0.4)
+circles<-c(7984,10519,7227,6825,9675,9250,430,1917,6111,5517,2726,3157,1337,623,617,512,2896,1058,787,5490,2469,1577,625,350,254,471,601,404,454,508,2479,326,4497,3026,2978,1786,4627,5855)
+mean(circles)
+```
 
-# Create data
-data = data.frame(
-    factor = sample(letters[1:8], 1000, replace = TRUE),
-    x = rnorm(1000),
-    y = runif(1000)
+
+```{r}
+renderPlot({
+    ggplot(filter_circ(), aes( x = chr, y = size_bp))+
+      geom_point(aes(color=chr),size=4,shape=21)+
+      theme_bw() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+```
+
+```{r}
+
+# Set chromosome as factor
+circ$chr <- substr(circ$chr, start = 1, stop = 5)
+circ$chr<-str_remove(circ$chr,"_")
+circ$chr<-str_remove(circ$chr,"chr")
+circ$chr <- factor(circ$chr, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+
+# Add quality levels (score < 10 = Bad, score < 50 = Low, score < 200 = Medium, score > 200 = Good)
+circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+
+# Get overall results
+total_circles<-circ %>% count()
+p_bad <-((circ %>% filter (quality=="Bad") %>% count())/total_circles)*100
+p_low <- ((circ %>% filter(quality=="Low") %>% count())/total_circles)*100
+p_medium <- ((circ %>% filter(quality=="Medium") %>% count())/total_circles)*100
+p_good <- ((circ %>% filter(quality=="Good") %>% count())/total_circles)*100
+
+# Add size of circle (number of bp)
+size_bp <- circ$end - circ$start
+circ<- add_column(circ,size_bp)
+head(circ)
+
+# There are many differences in size between circles, we need to make different graphs
+df_circ <- circ %>% filter (size_bp <= 5000)
+outliers <- circ %>% filter (size_bp > 5000)
+
+
+```
+
+
+```{r}
+       
+        tabItem(
+               tabName = "results",
+                    fluidRow(
+                        valueBox(total_circles,tags$b("TOTAL DNA CIRCLES"), color="maroon",
+                                 icon = tags$i(class = "fas fa-dna", style="font-size: 50px")
+                                 ),
+                        box(width = 3,background = "olive",tags$h4("GOOD:",paste0(round(p_good,2),"%"))),
+                        box(width = 3, background = "yellow",tags$h4("LOW:", paste0(round(p_low,2),"%"))),
+                        box(width = 3, background = "light-blue",tags$h4("MEDIUM:",paste0(round(p_medium,2),"%"))),
+                        box(width = 3, background = "red",tags$h4("BAD:", paste0(round(p_bad,2),"%"))),
+                        ),
+                    fluidRow(
+                        box(girafeOutput("results"),width=7,
+                            status = "primary",
+                            ),
+                        box(title= span(icon("filter"), "Filters"), status = "warning", width = 5,
+                            checkboxGroupInput(inputId = "quality",
+                                               "Quality of your circles:",
+                                               choices = c("Bad","Low","Medium","Good"),
+                                               selected= c("Medium","Good")
+                            ),
+                            sliderInput(inputId = "size",
+                                        "By size (number of base pairs):",
+                                        min = min(df_circ$size_bp),
+                                        max= 5000,
+                                        value = c(250,2500)),
+                            
+                           
     )
-
-# Step1: Initialise the chart giving factor and x-axis.
-circos.initialize( factors=data$factor, x=data$x )
-
-# Step 2: Build the regions.
-circos.trackPlotRegion(factors = data$factor, y = data$y, panel.fun = function(x, y) {
-    circos.axis()
-    })
-
-# Step 3: Add points
-circos.trackLines(data$factor, data$x[order(data$x)], data$y[order(data$x)], col = rgb(0.1,0.5,0.8,0.3), lwd=2, type="h")
+                ),
+            )
 ```
 
 ```{r}
- ggplot(circ, aes( x = size_bp, y = coverage_cont))+
-      geom_point(colour="#E84E84")+
-  geom_point(colour="white",size=0.6)+
-      theme_bw() + theme(legend.position =c(0.15,0.85),legend.title = element_blank(),panel.border = element_blank(), panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+    
+  filter_circ <- reactive({
+    filter_circ<- filter(df_circ, between(size_bp, input$size[1], input$size[2]), quality == input$quality)
+  })
+  
+  output$results <- renderGirafe({
+    gg_scatter <-ggplot(filter_circ(), aes( x = chr, y = size_bp,tooltip=split_reads,data_id=split_reads))+
+      geom_point_interactive (size=4,shape=21,color=chr)+
+      theme_minimal()
+    
+    girafe(ggobj = gg_scatter,
+           options = list(opts_selection(type = "single")) )
+  })
+  
 ```
-```{r}
-circ %>% filter(quality=="Good")
-```
-```{r}
 
+
+```{r}
+library(Biostrings)
+seq <- sample(DNA_ALPHABET[1:4], size=120, replace=TRUE)
+pos <- seq(1, length(seq), by=1)
+df_seq <- data.frame(pos,seq)
 ```
 
+
+```{r}
+set.seed(999)
+n = 1000
+df = data.frame(sectors = sample(letters[1:8], n, replace = TRUE),
+    x = rnorm(n), y = runif(n))
+library(circlize)
+circos.par("track.height" = 0.1)
+circos.initialize(df$sectors, x = df$x)
+```
