@@ -5,7 +5,7 @@ library(tidyverse)
 library(ggplot2)
 library(ggiraph)
 library(plotly)
-
+library(DT)
 
 # User interface
 ui <- dashboardPage(
@@ -23,11 +23,18 @@ ui <- dashboardPage(
         tabItems(
             tabItem(
                 tabName = "about",
-                    fluidRow(h2("Wellcome!")),
                     fluidRow(
-                        box(title= "Upload a Circle BED file with output:",fileInput("bedfile","Choose file:"),status="primary"),
-                        uiOutput("ui_total")
-            ),
+                        box(
+                        title = "Wellcome to Visual eccDNA", status="primary",width = 12, solidHeader = TRUE,
+                        "This is an app for dynamic data visualization of eccDNA output files. Start selecting a BED file and this page will show an overview of the results. Then press Get Started! button, and you will be able to see further information about the DNA circles contained in your file, in View Results page."
+                    )),
+                    fluidRow(
+                            box(title= "Upload a Circle BED file with output:",fileInput("bedfile","Choose file:"),status="primary"),
+                            uiOutput("start")
+                        ),
+                    fluidRow(uiOutput("total"),
+                             uiOutput("quality_gg")
+                             ),
                     fluidRow(uiOutput("table"))
             ),
             tabItem(
