@@ -19,8 +19,8 @@ server <- function(input, output,session){
     output$start<-renderUI({
       req(input$bedfile)
       box(background = "light-blue",height=120,width=4,
-          "Click this button to see results:",br(),br(),
-          actionButton("click","Go to View Results")
+          tags$b("Click this button to explore your file:"),br(),br(),
+          actionButton("click","View Results")
           )
       })
     
@@ -84,7 +84,8 @@ server <- function(input, output,session){
         searching = FALSE,
         pageLength = 5,
         lengthMenu = c(5, 10, 15, 20),
-        scrollX=TRUE
+        scrollX=TRUE,
+        columnDefs = list(list(className = 'dt-center', targets = 0:4))
       ))
     })
     
@@ -136,7 +137,8 @@ server <- function(input, output,session){
     output$plot_results <- renderUI({
       req(input$click)
       
-      box(title="Circles under 5000bp",status="primary", width=8, renderGirafe({
+      box(title="Circles under 5000bp",status="primary", width=8,solidHeader = TRUE,
+          renderGirafe({
                gg_results <-ggplot(plot_circ(), aes( x = chr, y = size_bp,color=chr))+
                 geom_point_interactive (aes(tooltip=discordant_reads),size=4)+
                  xlab("Original Chromosome")+
@@ -182,7 +184,13 @@ server <- function(input, output,session){
       circ$size_bp <- circ$end - circ$start
       
       # Remove bad coverage circles and outliers with wrong discordant reads outputs
-      circ <- filter(circ,coverage_cont < 0.5 & discordant_reads < 5000 & size_bp >5000)
+      circ <- circ %>% 
+        filter(coverage_cont < 0.5 & size_bp >5000)  %>%
+        select (chr,start,end,discordant_reads,split_reads,score,quality,size_bp)
+      
+      # Display only some columns
+      names(circ) <- c("Original Chromosome","Start","End","Discordant Reads","Split Reads","Score","Quality","Size")
+      circ
       })
     
     # Make the data table for circles over 5000bp
@@ -191,14 +199,15 @@ server <- function(input, output,session){
         searching = FALSE,
         pageLength = 5,
         lengthMenu = c(5, 10, 15, 20),
-        scrollX=TRUE
+        scrollX=TRUE,
+        columnDefs = list(list(className = 'dt-center', targets = 0:4))
       ))
     })
     
     # Render UI - Appear after click on the first page
     output$table_bigcircles <- renderUI({
       req(input$click)
-      box(width = NULL, solidHeader = TRUE,
+      box(title="Circles over 5000bp",status="danger",width = NULL, solidHeader = TRUE,
           dataTableOutput("bigcircles"))
     })
     
