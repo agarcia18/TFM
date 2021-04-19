@@ -65,28 +65,64 @@ circ %>% select(chr)%>% distinct() %>% arrange(chr)
 ```
 
 ```{r}
-
 # Submit button changed tab
-library("shiny")
+library(shiny)
 ui <- fluidPage(
-  tabsetPanel(
-    id = "tabs",
-    tabPanel(
-      title = "params",
-      actionButton(inputId = "submitInfo", label = "submit info")
+        tabsetPanel(
+                id="inTabset",
+                tabPanel("Tab 1",actionButton("switch_tab", "Go to the third tab")
+                ),
+                tabPanel("Tab 2", "there!"),
+                tabPanel("Tab 3", "there!"))
+
+)
+
+server <- function(input, output, session) {
+
+        observeEvent(input$switch_tab, {
+                updateTabsetPanel(session, "inTabset",selected = "Tab 3")
+        })
+
+}
+shinyApp(ui = ui, server = server)
+```
+
+
+```{r}
+
+ui <- dashboardPage(
+  dashboardHeader(title = "Simple tabs"),
+  dashboardSidebar(
+    sidebarMenu(
+      id = "tabs",
+      menuItem("Dashboard", tabName = "dashboard", icon = icon("dashboard")),
+      menuItem("Widgets", tabName = "widgets", icon = icon("th"))
     ),
-    tabPanel(
-      title = "result",
-      "result"
+    actionButton('switchtab', 'Switch tab')
+  ),
+  dashboardBody(
+    tabItems(
+      tabItem(tabName = "dashboard",
+        h2("Dashboard tab content")
+      ),
+      tabItem(tabName = "widgets",
+        h2("Widgets tab content")
+      )
     )
   )
 )
-server <- function(input, output, session){
-  observeEvent(input$submitInfo, {
-    updateTabsetPanel(session = session, inputId = "tabs", selected = "result")
+
+server <- function(input, output, session) {
+  observeEvent(input$switchtab, {
+    newtab <- switch(input$tabs,
+      "dashboard" = "widgets",
+      "widgets" = "dashboard"
+    )
+    updateTabItems(session, "tabs", newtab)
   })
 }
-shinyApp(ui = ui, server = server)
+
+shinyApp(ui, server)
 
 ```
 
@@ -199,13 +235,16 @@ checkboxGroupInput(inputId = "quality",
 ```
 
 ```{r}
-    
-  filter_circ <- reactive({
-    filter_circ<- filter(df_circ, between(size_bp, input$size[1], input$size[2]), quality == input$quality)
+filter_circ <- reactive({
+    filter_circ<- filter(circ, between(size_bp, input$size[1], input$size[2]), quality == input$quality)
   })
   
   output$results <- renderGirafe({
-    gg_scatter <-ggplot(filter_circ(), aes( x = chr, y = size_bp,tooltip=split_reads,data_id=split_reads))+
+```
+
+
+```{r}
+gg_scatter <-ggplot(filter_circ(), aes( x = chr, y = size_bp,tooltip=split_reads,data_id=split_reads))+
       geom_point_interactive (size=4,shape=21,color=chr)+
       theme_minimal()
     
@@ -233,3 +272,51 @@ library(circlize)
 circos.par("track.height" = 0.1)
 circos.initialize(df$sectors, x = df$x)
 ```
+
+
+```{r}
+library(plotly)
+
+      circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
+      
+      
+      names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+      
+      # Set chromosome as factor and fix random chr
+      circ$chr <- substr(circ$chr, start = 1, stop = 5)
+      circ$chr<-str_remove(circ$chr,"_")
+      circ$chr<-str_remove(circ$chr,"chr")
+      circ$chr <- factor(circ$chr, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+      
+      # Add quality levels (score < 10 = Bad, score < 50 = Low, score < 200 = Medium, score > 200 = Good)
+      circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+      
+      # Add circle id
+      circ <- circ %>% mutate(circle_id = 1:n()) %>% select(circle_id, everything())
+      
+      # Add size of circle (number of bp)
+      circ$size_bp <- circ$end - circ$start
+      circ <- circ %>% filter(size_bp < 5000 & quality!="Bad")
+fig <- circ %>%
+  plot_ly(
+    type = 'scatter',
+    mode = 'markers',
+    x = ~chr,
+    y = ~size_bp,
+    marker = ,
+    color = ~quality,
+    text = ~circle_id,
+    hovertemplate = paste(
+      "<b>Circle ID:%{text}<br><br>",
+      "%{yaxis.title.text}: %{y:$,.0f}<br>",
+      "%{xaxis.title.text}: %{x:.0%}<br>",
+      "Number Employed: %{marker.size:,}",
+      "<extra></extra>"
+      )
+    ) 
+fig <- fig %>%
+  layout(legend = list(orientation = 'h', y = -0.3))
+
+fig
+```
+
