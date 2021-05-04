@@ -3,4 +3,4 @@
 ------------
 
 ### Work plan
-![](gannt_updated.png)
+![](gannt.png)
