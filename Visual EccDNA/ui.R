@@ -2,7 +2,7 @@
 library(shiny)
 library(shinydashboard)
 library(tidyverse)
-library(ggiraph)
+library(plotly)
 library(DT)
 
 # User interface

@@ -6,8 +6,13 @@ output: html_document
 ---
 
 ```{r}
-if(!(require(tidyverse))) install.packages("tidyverse",quiet=T)
-require(tidyverse)
+# Load required packages 
+library(shiny)
+library(shinydashboard)
+library(tidyverse)
+library(ggiraph)
+library(DT)
+library(plotly)
 ```
 
 
@@ -19,38 +24,29 @@ names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","c
 
 # Add quality levels (score < 10 = Bad, score < 50 = Low, score < 200 = Medium, score > 200 = Good)
     circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
-
-    circ %>% group_by (quality) %>% summarise((count = n() / nrow(.))*100)
-    circ %>% group_by (quality) %>% count() %>% mutate(perc = n / nrow(circ)) -> circ_quality
-    boxplot(circ$size_bp)
     
-```
-
-
-
-```{r}
-# Add circle id
-circ <- circ %>% mutate(circle_id = 1:n()) %>% select(circle_id, everything())
-
-```
-
-```{r}
 # Set chr as factor
 circ$chr <- substr(circ$chr, start = 1, stop = 5)
 circ$chr<-str_remove(circ$chr,"_")
 circ$chr<-str_remove(circ$chr,"chr")
 circ$chr <- factor(circ$chr, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
-```
 
-```{r}
-# Add quality levels (score < 10 = bad, score < 50 = low, score < 200 = medium, score > 200 = high)
-circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("bad","low", "medium", "good"),right = FALSE)
+# Add circle id
+circ <- circ %>% mutate(circle_id = 1:n()) %>% select(circle_id, everything())
 
 # Add size of circle (number of bp)
 size_bp <- circ$end - circ$start
 circ<- add_column(circ,size_bp)
 head(circ)
+
 ```
+
+```{r}
+circ %>% group_by (quality) %>% summarise((count = n() / nrow(.))*100)
+circ %>% group_by (quality) %>% count() %>% mutate(perc = n / nrow(circ)) -> circ_quality
+boxplot(circ$size_bp)
+```
+`
 
 ```{r}
 total_circles<-circ %>% count()
@@ -65,7 +61,7 @@ circ %>% select(chr)%>% distinct() %>% arrange(chr)
 ```
 
 ```{r}
-# Submit button changed tab
+###### EXAMPLE - Submit button changed tab
 library(shiny)
 ui <- fluidPage(
         tabsetPanel(
@@ -297,13 +293,12 @@ library(plotly)
       # Add size of circle (number of bp)
       circ$size_bp <- circ$end - circ$start
       circ <- circ %>% filter(size_bp < 5000 & quality!="Bad")
-fig <- circ %>%
-  plot_ly(
-    type = 'scatter',
+
+      fig <- circ %>%
+  plot_ly(type = 'scatter',
     mode = 'markers',
     x = ~chr,
     y = ~size_bp,
-    marker = ,
     color = ~quality,
     text = ~circle_id,
     hovertemplate = paste(
@@ -318,5 +313,47 @@ fig <- fig %>%
   layout(legend = list(orientation = 'h', y = -0.3))
 
 fig
+```
+
+
+
+```{r}
+library(plotly)
+
+fig <- plot_ly(circ,
+  type = 'scatter',
+  x = ~chr,
+  y = ~size_bp,
+  text = paste("Discordant Reads: ", circ$discordant_reads,
+               "<br>Split Reads : ", circ$split_reads,
+               "<br>Size: ", circ$size_bp),
+  hoverinfo = 'text',
+  mode = 'markers',
+  transforms = list(
+    list(
+      type = 'groupby',
+      groups = circ$chr,
+      styles = list(
+        list(target = 1, value = list(marker =list(color = 'blue'))),
+        list(target = 2, value = list(marker =list(color = 'red'))),
+        list(target = 3, value = list(marker =list(color = 'black')))
+      )
+      )
+    )
+  )
+
+fig
+```
+
+```{r}
+          renderGirafe({
+               gg_results <-ggplot(plot_circ(), aes( x = chr, y = size_bp,color=chr))+
+                geom_point_interactive (aes(tooltip=discordant_reads),size=4)+
+                 xlab("Original Chromosome")+
+                 ylab("Size")+
+                 theme_minimal()+
+                 guides(color="none")
+                
+              girafe(ggobj = gg_results)
 ```
 

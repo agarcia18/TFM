@@ -127,7 +127,7 @@ server <- function(input, output,session){
       circ$size_bp <- circ$end - circ$start
       
       # Remove bad coverage circles and wrong discordant reads outputs
-      circ <- filter(circ,coverage_cont < 0.5 & discordant_reads < 5000)
+      circ <- filter(circ,coverage_cont < 0.5 & discordant_reads < size_bp)
       
       # Incorporate filters input (size and quality)
       plot_circ<- filter(circ, between(size_bp, input$size[1], input$size[2]), quality == input$quality)
@@ -135,25 +135,31 @@ server <- function(input, output,session){
     
    # Plot for circles under 5000bp
     output$plot_results <- renderUI({
-      req(input$click)
+      req(input$bedfile)
       
       box(title="Circles under 5000bp",status="primary", width=8,solidHeader = TRUE,
-          renderGirafe({
-               gg_results <-ggplot(plot_circ(), aes( x = chr, y = size_bp,color=chr))+
-                geom_point_interactive (aes(tooltip=discordant_reads),size=4)+
-                 xlab("Original Chromosome")+
-                 ylab("Size")+
-                 theme_minimal()+
-                 guides(color="none")
-                
-              girafe(ggobj = gg_results)
-    })
+
+    renderPlotly({
+      fig <- plot_circ() %>%
+      plot_ly(type = 'scatter',
+              mode = 'markers',
+              x = ~chr,
+              y = ~size_bp,
+              color = ~chr,
+              text = ~split_reads,
+              customdata=~discordant_reads,
+              hovertemplate = paste("<b>Split Reads: %{text}<br>",
+                                    "Discordant Reads: %{customdata}<br>",
+                                    "Size: %{y:.0} bp <br>"),
+              showlegend = FALSE
       )
     })
+      )
+  })
     
     # Box of widgets for extra filtering the plot
     output$filters<-renderUI({
-      req(input$click)
+      req(input$bedfile)
       box(title="Filters (for plot only)", icon="filter",width=4,status="warning",
         sliderInput(inputId = "size",
                     "By size (number of base pairs):",
@@ -206,7 +212,7 @@ server <- function(input, output,session){
     
     # Render UI - Appear after click on the first page
     output$table_bigcircles <- renderUI({
-      req(input$click)
+      req(input$bedfile)
       box(title="Circles over 5000bp",status="danger",width = NULL, solidHeader = TRUE,
           dataTableOutput("bigcircles"))
     })
