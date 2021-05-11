@@ -18,7 +18,7 @@ library(plotly)
 
 
 ```{r}
-circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315424_unknown_circle.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
+circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315401_unknown_circle.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
 
 names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
 
@@ -346,14 +346,72 @@ fig
 ```
 
 ```{r}
-          renderGirafe({
+library(ggiraph)
                gg_results <-ggplot(plot_circ(), aes( x = chr, y = size_bp,color=chr))+
                 geom_point_interactive (aes(tooltip=discordant_reads),size=4)+
                  xlab("Original Chromosome")+
                  ylab("Size")+
                  theme_minimal()+
-                 guides(color="none")
+```
+
+```{r}
+ 
+perc<-as.data.frame(circ %>% group_by(size_bp < 5000) %>% count() %>% mutate(pct_tot = n/nrow(circ)*100))
+perc_big <- perc[1,3]
+perc_smal <- perc[2,3]
+```
+
+
+```{r}
+guides(color="none")
                 
               girafe(ggobj = gg_results)
+```
+
+```{r}
+ # TABLE OUTPUT OF BIG CIRCLES
+    table_results<-reactive({
+        if (is.null(input$bedfile))
+            return(NULL)                
+        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
+        names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        
+        # Add circle id
+        circ <- circ %>% mutate(circle_id = 1:n()) %>% select(circle_id, everything())
+        
+        # Add quality levels (score < 10 = Bad, score < 50 = Low, score < 200 = Medium, score > 200 = Good)
+        circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+        
+        # Add size of circle (number of bp)
+        circ$size_bp <- circ$end - circ$start
+        
+        # Remove bad coverage circles and outliers with wrong discordant reads outputs
+        circ <- circ %>% 
+            filter(coverage_cont < 0.5 & size_bp >5000)  %>%
+            select (circle_id, chr,start,end,discordant_reads,split_reads,score,quality,size_bp)
+        
+        # Display only some columns
+        names(circ) <- c("Circle ID", "Original Chromosome","Start","End","Discordant Reads","Split Reads","Score","Quality","Size")
+        circ
+    })
+    
+    # Make the data table for circles over 5000bp
+    output$bigcircles <- DT::renderDataTable({
+        DT::datatable(table_results(),options = list(
+            searching = FALSE,
+            pageLength = 5,
+            lengthMenu = c(5, 10, 15, 20),
+            scrollX=TRUE,
+            columnDefs = list(list(className = 'dt-center', targets = 0:4))
+        ))
+    })
+    
+    # Render UI - Appear after click on the first page
+    output$table_bigcircles <- renderUI({
+        req(input$bedfile)
+        box(title="Circles over 5000bp",status="danger",width = NULL, solidHeader = TRUE,
+            dataTableOutput("bigcircles"))
+    })
+    
 ```
 

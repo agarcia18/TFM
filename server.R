@@ -1,4 +1,3 @@
-
 server <- function(input, output,session){
   # Change options to process bigger files (30MB)
   options(shiny.maxRequestSize=30*1024^2)
@@ -13,7 +12,7 @@ server <- function(input, output,session){
       circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
       
       valueBox(value=circ %>% count(),tags$b("TOTAL DNA CIRCLES"), color="navy",width=6,
-               icon = tags$i(class = "fas fa-dna", style="color:white"))
+               icon = tags$i(class = "far fa-circle", style="color:white"))
       })
     
   # RESULTS BUTTON
@@ -28,7 +27,7 @@ server <- function(input, output,session){
     # Enable going to View Results tab after click
     observeEvent(input$click, {
       newtab <- switch(input$tabs,
-                       "about" = "results")
+                       "about" = "smallcirc")
       
       updateTabItems(session, "tabs", newtab)
     })
@@ -79,6 +78,7 @@ server <- function(input, output,session){
       circ
     })
     
+    output$hist <- 
     # Make the data table
     output$data <- DT::renderDataTable({
       DT::datatable(dataframe(),options = list(
@@ -138,7 +138,7 @@ server <- function(input, output,session){
     output$plot_results <- renderUI({
       req(input$bedfile)
       
-      box(title="Circles under 5000bp",status="primary", width=8,solidHeader = TRUE,
+      box(title=paste0("Circles under ", size,"bp"),status="primary", width=8,solidHeader = TRUE,
 
     renderPlotly({
       fig <- plot_circ() %>%
@@ -148,10 +148,10 @@ server <- function(input, output,session){
               x = ~chr,
               y = ~size_bp,
               color = ~chr,
-              text = ~split_reads,
-              customdata=~discordant_reads,
-              hovertemplate = paste("<b>Split Reads: %{text}<br>",
-                                    "Discordant Reads: %{customdata}<br>",
+              text = ~discordant_reads,
+              customdata=~split_reads,
+              hovertemplate = paste("<b>Discordant Reads: %{text}<br>",
+                                    "Split Reads: %{customdata}<br>",
                                     "Size: %{y:.0} bp <br>"),
               showlegend = FALSE
       )
@@ -167,11 +167,11 @@ server <- function(input, output,session){
     # Box of widgets for extra filtering the plot
     output$filters<-renderUI({
       req(input$bedfile)
-      box(title="Filters (for plot only)", icon="filter",width=4,status="warning",
+      box(title="Filters", icon="filter",width=4,status="warning",
         sliderInput(inputId = "size",
                     "By size (number of base pairs):",
-                    min = 50,
-                    max= 5000,
+                    min = min(),
+                    max = size,
                     value = c(250,2500)),
         checkboxGroupInput(inputId = "quality",
                            "By quality:",
@@ -231,7 +231,7 @@ server <- function(input, output,session){
     
     observeEvent(event_data("plotly_click",source="circleSource"), {
       circletab <- switch(input$tabs,
-                       "results" = "circle")
+                       "smallcirc" = "circle")
       
       updateTabItems(session, "tabs", circletab)
       })
