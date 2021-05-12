@@ -18,9 +18,9 @@ library(plotly)
 
 
 ```{r}
-circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315401_unknown_circle.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
+circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315424_unknown_circle.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
 
-names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
 
 # Add quality levels (score < 10 = Bad, score < 50 = Low, score < 200 = Medium, score > 200 = Good)
     circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
@@ -360,13 +360,84 @@ perc<-as.data.frame(circ %>% group_by(size_bp < 5000) %>% count() %>% mutate(pct
 perc_big <- perc[1,3]
 perc_smal <- perc[2,3]
 ```
+```{r}
+library(dplyr)
+mycoords.list<-list("12:15897961:16877384")
+mycoords.gr = lapply(mycoords.list, function (x) {res=strsplit(x, ':')}) %>%
+   unlist %>%
+   as.numeric %>%
+   matrix(ncol=3, byrow=T) %>%
+   as.data.frame %>%
+   select(chrom=V1, start=V2, end=V3) %>%
+   mutate(chrom=paste0('chr', chrom)) %>%
+   makeGRangesFromDataFrame
+mycoords.gr
+```
 
 
 ```{r}
-guides(color="none")
-                
-              girafe(ggobj = gg_results)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+library(GenomicRanges)
+library(tidyverse)
+library(org.Hs.eg.db)
+
+circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315401_unknown_circle.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
+
+names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+
+coords<- circ %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame
+genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
+
+genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
+
+entrezid <- genes_df$gene_id
+
+library(org.Hs.eg.db)
+hs <- org.Hs.eg.db
+genesymbol_df<- AnnotationDbi::select(hs, 
+       keys = entrezid,
+       columns = c("ENTREZID", "SYMBOL"),
+       keytype = "ENTREZID")
+
+names(genesymbol_df)[names(genesymbol_df) == "ENTREZID"] <- "gene_id"
+
+gene_list<-left_join(genes_df,genesymbol_df)
+
+DT::datatable(gene_list)
 ```
+
+
+```{r}
+onecirc<-circ [1,]
+
+library(biomaRt)
+mart <- useMart("ensembl")
+mart <- useDataset("hsapiens_gene_ensembl", mart)
+attributes <- c("ensembl_gene_id","start_position","end_position","strand","hgnc_symbol","chromosome_name","entrezgene","ucsc","band")
+filters <- c("chromosome_name","start","end")
+values <- list(chromosome="1",start="1783590",end="2597819")
+all.genes <- getBM(attributes=attributes, filters=filters, values=values, mart=mart)
+```
+
+```{r}
+splitColumnByOverlap <-
+    function(query, subject, column="ENTREZID", ...)
+{
+    olaps <- findOverlaps(query, subject, ...)
+    f1 <- factor(subjectHits(olaps),
+                 levels=seq_len(subjectLength(olaps)))
+    splitAsList(mcols(query)[[column]][queryHits(olaps)], f1)
+    }
+
+ symInCnv = splitByOverlap(gns, cnv, "SYMBOL")
+```
+
+```{r}
+library(ensembldb)
+library(EnsDb.Hsapiens.v75)
+names(listTables(EnsDb.Hsapiens.v75))
+```
+
 
 ```{r}
  # TABLE OUTPUT OF BIG CIRCLES

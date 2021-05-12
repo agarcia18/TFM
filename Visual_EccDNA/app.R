@@ -13,7 +13,7 @@ range_big <- c(10000,1000000)
 # User interface
 ui <- dashboardPage(
     
-    dashboardHeader(title = "Visual EccDNA"),
+    dashboardHeader(title = "Visual eccDNA"),
     
     dashboardSidebar(
         sidebarMenu(
@@ -30,12 +30,11 @@ ui <- dashboardPage(
     dashboardBody(
         tabItems(
             tabItem(
-                tabName = "about",
-                    fluidRow(HTML('<center><img src="eccdna.jpg"></center>'),
+                tabName = "about",                    
+                fluidRow(HTML('<center><img src="logo.png"></center>'),
                              br(),br(),
-                        box(
-                        title = "Wellcome to Visual eccDNA2",width = 12, solidHeader = TRUE,
-                        "This is an app for dynamic data visualization of eccDNA output files. Start selecting a BED file and this page will show an overview of the results. For better understanding of the output, circles will be separated by size. You can press the buttons View Results, and you will be able to see further information about the DNA circles contained in your file."
+                        box(width = 12, solidHeader = TRUE,
+                        "Wellcome to Visual eccDNA. This is an app for dynamic data visualization of eccDNA output files. Start selecting a BED file and this page will show an overview of the results. For better understanding of the output, circles will be separated by size. You can press the buttons View Results, and you will be able to see further information about the DNA circles contained in your file."
                     )),
                     fluidRow(
                             box(title= "Upload a Circle BED file with output:",fileInput("bedfile","Choose file:"), status="primary"),
@@ -49,13 +48,18 @@ ui <- dashboardPage(
             ),
             tabItem(
                 tabName = "smallcirc",
-                    fluidRow(uiOutput("plot_results_small"),
-                             uiOutput("filters_small")),
+                    fluidRow(
+                        uiOutput("plot_results_small"),
+                             uiOutput("filters_small"),
+                             uiOutput("backbuttonsmall")
+                        ),
                     ),
             tabItem(
                 tabName = "bigcirc",
                 fluidRow(uiOutput("plot_results_big"),
-                         uiOutput("filters_big")),
+                         uiOutput("filters_big"),
+                         uiOutput("backbuttonbig")
+                         ),
             ),
             tabItem(
                 tabName="circle",
@@ -80,7 +84,7 @@ server <- function(input, output,session){
         if (is.null(input$bedfile))
             return(NULL)                
         circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
-        names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
         
         # Add circle id
         circ <- circ %>% mutate(circle_id = 1:n()) %>% select(circle_id, everything())
@@ -91,59 +95,54 @@ server <- function(input, output,session){
         # Add size of circle (number of bp)
         circ$size_bp <- circ$end - circ$start
         
-        circ
-    })
+        circ })
 
     
     ##### "Get started" tab server functions ####
     
     # TOTAL CIRCLES VALUEBOX
     output$total <- renderUI({
-        
-        # Read data and count()
         req(input$bedfile)
-        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
-        
-        valueBox(value=circ %>% count(),tags$b("TOTAL eccDNA CIRCLES"), color="navy",width=6,
+        valueBox(value=dataframe() %>% count(),tags$b("TOTAL eccDNA CIRCLES"), color="navy",width=6,
                  icon = tags$i(class = "far fa-circle", style="color:white"))
     })
-    # RESULTS BUTTON
+    
+    # RESULTS BUTTON - SMALL & BIG CIRCLES
+    
+    # Small circles % and click button
     output$click_small<-renderUI({
         req(input$bedfile)
-        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
-        names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
-        circ$size_bp <- circ$end - circ$start
-        perc<-as.data.frame(circ %>% group_by(size_bp < circ_size) %>% count() %>% mutate(pct_tot = n/nrow(circ)*100))
+        perc<-as.data.frame(dataframe() %>% group_by(size_bp < circ_size) %>% count() %>% mutate(pct_tot = n/nrow(dataframe())*100))
         perc_small <- perc[2,3]
         
         box(background = "maroon",height=150,width=3,
-            tags$b("Small eccDNA circles:"),
-            tags$h2(paste0(round(perc_small,2),"%")),
-            actionButton("click_smallcirc","View Results"))
+            h4("Small eccDNA circles:",align="center"),
+            h1(paste0(round(perc_small,2),"%"),align="center"),
+            actionButton("click_smallcirc","View Results"),align="center")
     })
     
-    output$click_big<-renderUI({
-        req(input$bedfile)
-        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
-        names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
-        circ$size_bp <- circ$end - circ$start
-        perc<-as.data.frame(circ %>% group_by(size_bp < circ_size) %>% count() %>% mutate(pct_tot = n/nrow(circ)*100))
-        perc_big <- perc[1,3]
-        
-        box(background = "purple",height=150,width=3,
-            tags$b("Big eccDNA circles:"),
-            tags$h2(paste0(round(perc_big,2),"%")),
-            actionButton("click_bigcirc","View Results"))
-    })
-    
-
-    # Enable going to each tab of results after click in Value Box
+    # Click event - Change to the small circles plot tab 
     observeEvent(input$click_smallcirc, {
         newtab <- switch(input$tabs,
                          "about" = "smallcirc")
         
         updateTabItems(session, "tabs", newtab)
     })
+    
+   # Big circles % and click button
+    output$click_big<-renderUI({
+        req(input$bedfile)
+        perc<-as.data.frame(dataframe() %>% group_by(size_bp < circ_size) %>% count() %>% mutate(pct_tot = n/nrow(dataframe())*100))
+        perc_big <- perc[1,3]
+        
+        box(background = "purple",height=150,width=3,
+            h4("Big eccDNA circles:",align="center"),
+            h1(paste0(round(perc_big,2),"%"),align="center"),
+            actionButton("click_bigcirc","View Results"),align="center")
+    })
+    
+
+    # Click event - Change to the big circles plot tab 
     observeEvent(input$click_bigcirc, {
         newtab2 <- switch(input$tabs,
                          "about" = "bigcirc")
@@ -158,16 +157,9 @@ server <- function(input, output,session){
         req(input$bedfile)
         if (is.null(input$bedfile))
             return(NULL)                
-        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
-        names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
-        
-        # Add quality levels (score < 10 = Bad, score < 50 = Low, score < 200 = Medium, score > 200 = Good)
-        circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
-        
-        # Make the box and the plot 
         box(title="Quality in eccDNA circles",height=300,width=6,status="primary",
             renderPlot(
-            ggplot(circ, aes(x = quality)) +  
+            ggplot(dataframe(), aes(x = quality)) +  
                 geom_bar(aes(y = (..count..)/sum(..count..),fill=quality),width=0.4,alpha=0.8,position = position_stack(reverse = TRUE))+
                 scale_fill_manual(values=c("#FF5733","#FFC300","#DAF7A6","#6EBC63"))+
                 scale_y_continuous(labels=scales::percent)+
@@ -178,26 +170,22 @@ server <- function(input, output,session){
             p(em("Quality is calculated from score: Bad (< 10), Low (10-50), Medium (50-200), Good (> 200).",style = "font-size:12px;")))
     })
     
-             # DATA TABLE
-
-        # Make the data table
-        output$data <- DT::renderDataTable({
+    # DATA TABLE
+    
+    output$table <- renderUI({
+        req(input$bedfile)
+        box(width = NULL, solidHeader = TRUE,
+            DT::renderDataTable({
             DT::datatable(dataframe(),options = list(
                 searching = FALSE,
-                pageLength = 5,
+                pageLength =8 ,
                 lengthMenu = c(5, 10, 15, 20),
                 scrollX=TRUE,
                 columnDefs = list(list(className = 'dt-center', targets = 0:4))
             ))
         })
-    
-    # Render UI - Appear after file is uploaded
-    output$table <- renderUI({
-        req(input$bedfile)
-        box(width = NULL, solidHeader = TRUE,
-            dataTableOutput("data"))
+        )
     })
-    
     
     
     ##### "View Results" tab server functions - Smaller circles ####  
@@ -210,13 +198,13 @@ server <- function(input, output,session){
             return(NULL) 
         circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
         
-        names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
         
-        # Set chromosome as factor and fix random chr
-        circ$chr <- substr(circ$chr, start = 1, stop = 5)
-        circ$chr<-str_remove(circ$chr,"_")
-        circ$chr<-str_remove(circ$chr,"chr")
-        circ$chr <- factor(circ$chr, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+        # Set chromosome as factor and fix random outputs
+        circ$chrom <- substr(circ$chrom, start = 1, stop = 5)
+        circ$chrom<-str_remove(circ$chrom,"_")
+        circ$chrom<-str_remove(circ$chrom,"chr")
+        circ$chrom <- factor(circ$chrom, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
         
         
         # Add quality levels (score < 10 = Bad, score < 50 = Low, score < 200 = Medium, score > 200 = Good)
@@ -239,7 +227,7 @@ server <- function(input, output,session){
     output$plot_results_small <- renderUI({
         req(input$bedfile)
         
-        box(title=span(icon("fal fa-dna"), paste0("Circles under ", circ_size,"bp")),width=8, height = 480, background = "maroon",solidHeader = TRUE,
+        box(title=span(icon("fal fa-dna"), paste0("Circles under ", circ_size,"bp")),width=8, height = 460, background = "maroon",solidHeader = TRUE,
             
             renderPlotly({
                 fig <- data_circ_small() %>%
@@ -248,8 +236,8 @@ server <- function(input, output,session){
                             mode = 'markers',
                             marker = list(
                                 size = 8),
-                            color = ~chr,
-                            x = ~chr,
+                            color = ~chrom,
+                            x = ~chrom,
                             y = ~size_bp,
                             text = ~discordant_reads,
                             customdata=~split_reads,
@@ -270,7 +258,7 @@ server <- function(input, output,session){
     # Box of widgets for extra filtering the plot
     output$filters_small<-renderUI({
         req(input$bedfile)
-        box(title=span(icon("filter"),"Filters"),width=3,
+        box(title=span(icon("filter"),"Filters"),width=4,
             sliderInput(inputId = "size_small",
                         "By size (number of base pairs):",
                         min = 10,
@@ -281,6 +269,20 @@ server <- function(input, output,session){
                                choices = c("Bad","Low","Medium","Good"),
                                selected= c("Medium","Good")),
         )
+    })
+    
+    output$backbuttonsmall<-renderUI({
+        req(input$bedfile)
+        box(width=2,
+        actionButton("click_backsmallcirc","Back to Get Started"),align="center")
+    })
+    
+    # Click event - Back to "Get Started"
+    observeEvent(input$click_backsmallcirc, {
+        back1 <- switch(input$tabs,
+                         "smallcirc" = "about")
+        
+        updateTabItems(session, "tabs", back1)
     })
     
     
@@ -294,13 +296,13 @@ server <- function(input, output,session){
             return(NULL) 
         circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
         
-        names(circ) <- c("chr","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
         
-        # Set chromosome as factor and fix random chr
-        circ$chr <- substr(circ$chr, start = 1, stop = 5)
-        circ$chr<-str_remove(circ$chr,"_")
-        circ$chr<-str_remove(circ$chr,"chr")
-        circ$chr <- factor(circ$chr, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+        # Set chromosome as factor and fix random outputs
+        circ$chrom <- substr(circ$chrom, start = 1, stop = 5)
+        circ$chrom<-str_remove(circ$chrom,"_")
+        circ$chrom<-str_remove(circ$chrom,"chr")
+        circ$chrom <- factor(circ$chrom, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
         
         
         # Add quality levels (score < 10 = Bad, score < 50 = Low, score < 200 = Medium, score > 200 = Good)
@@ -332,8 +334,8 @@ server <- function(input, output,session){
                             mode = 'markers',
                             marker = list(
                                 size = 22),
-                            color = ~chr,
-                            x = ~chr,
+                            color = ~chrom,
+                            x = ~chrom,
                             y = ~size_bp,
                             text = ~discordant_reads,
                             customdata=~split_reads,
@@ -368,6 +370,19 @@ server <- function(input, output,session){
     })
     
     
+    output$backbuttonbig<-renderUI({
+        req(input$bedfile)
+        box(width=2,
+            actionButton("click_backbigcirc","Back to Get Started"),align="center")
+    })
+    
+    # Click event - Back to "Get Started"
+    observeEvent(input$click_backbigcirc, {
+        back2 <- switch(input$tabs,
+                        "bigcirc" = "about")
+        
+        updateTabItems(session, "tabs", back2)
+    })
     
     
     ##### "Circle info" tab server functions ####  
