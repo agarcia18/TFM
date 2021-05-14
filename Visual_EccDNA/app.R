@@ -4,13 +4,19 @@ library(shinydashboard)
 library(tidyverse)
 library(plotly)
 library(DT)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+library(GenomicRanges)
+library(org.Hs.eg.db)
+library(RITANdata)
+library(RITAN)
 
 # SIZE FILTERING
 circ_size <- 5000
 range_small <- c(250,2500)
 range_big <- c(10000,1000000)
 
-# User interface
+######################################################### UI #########################################################
+
 ui <- dashboardPage(
     
     dashboardHeader(title = "Visual eccDNA"),
@@ -51,8 +57,11 @@ ui <- dashboardPage(
                     fluidRow(
                         uiOutput("plot_results_small"),
                              uiOutput("filters_small"),
-                             uiOutput("backbuttonsmall")
+                             uiOutput("backbuttonsmall"),
+                    
                         ),
+                    fluidRow(uiOutput("table_small"),
+                             uiOutput("pathway_small"))
                     ),
             tabItem(
                 tabName = "bigcirc",
@@ -60,6 +69,8 @@ ui <- dashboardPage(
                          uiOutput("filters_big"),
                          uiOutput("backbuttonbig")
                          ),
+                fluidRow(uiOutput("table_big"),
+                         uiOutput("pathway_big"))
             ),
             tabItem(
                 tabName="circle",
@@ -74,6 +85,8 @@ ui <- dashboardPage(
     )
 )
 
+######################################################### SERVER #########################################################
+
 server <- function(input, output,session){
     # Change options to process bigger files (30MB)
     options(shiny.maxRequestSize=30*1024^2)
@@ -87,7 +100,7 @@ server <- function(input, output,session){
         names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
         
         # Add circle id
-        circ <- circ %>% mutate(circle_id = 1:n()) %>% select(circle_id, everything())
+        circ <- circ %>% mutate(circle_id = 1:n()) %>% dplyr::select(circle_id, everything())
         
         # Add quality levels (score < 10 = Bad, score < 50 = Low, score < 200 = Medium, score > 200 = Good)
         circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
@@ -98,7 +111,7 @@ server <- function(input, output,session){
         circ })
 
     
-    ##### "Get started" tab server functions ####
+    #################################### "Get Started" tab server functions #################################### 
     
     # TOTAL CIRCLES VALUEBOX
     output$total <- renderUI({
@@ -107,7 +120,8 @@ server <- function(input, output,session){
                  icon = tags$i(class = "far fa-circle", style="color:white"))
     })
     
-    # RESULTS BUTTON - SMALL & BIG CIRCLES
+    
+    # VIEW RESULTS BUTTONS - SMALL & BIG CIRCLES
     
     # Small circles % and click button
     output$click_small<-renderUI({
@@ -129,6 +143,7 @@ server <- function(input, output,session){
         updateTabItems(session, "tabs", newtab)
     })
     
+    
    # Big circles % and click button
     output$click_big<-renderUI({
         req(input$bedfile)
@@ -140,8 +155,6 @@ server <- function(input, output,session){
             h1(paste0(round(perc_big,2),"%"),align="center"),
             actionButton("click_bigcirc","View Results"),align="center")
     })
-    
-
     # Click event - Change to the big circles plot tab 
     observeEvent(input$click_bigcirc, {
         newtab2 <- switch(input$tabs,
@@ -171,7 +184,6 @@ server <- function(input, output,session){
     })
     
     # DATA TABLE
-    
     output$table <- renderUI({
         req(input$bedfile)
         box(width = NULL, solidHeader = TRUE,
@@ -186,13 +198,12 @@ server <- function(input, output,session){
         })
         )
     })
+
+#################################### "View Results" tab server functions - Small circles #################################### 
     
+    # PLOT OUTPUT - SMALL CIRCLES
     
-    ##### "View Results" tab server functions - Smaller circles ####  
-    
-    # PLOT OUTPUT 
-    
-    # Import data and make it reactive
+    # Import data for plot and make it reactive
     data_circ_small <- reactive({
         if (is.null(input$bedfile))
             return(NULL) 
@@ -211,7 +222,7 @@ server <- function(input, output,session){
         circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
         
         # Add circle id
-        circ <- circ %>% mutate(circle_id = 1:n()) %>% select(circle_id, everything())
+        circ <- circ %>% mutate(circle_id = 1:n()) %>% dplyr::select(circle_id, everything())
         
         # Add size of circle (number of bp)
         circ$size_bp <- circ$end - circ$start
@@ -226,9 +237,7 @@ server <- function(input, output,session){
     # Plot for small circles
     output$plot_results_small <- renderUI({
         req(input$bedfile)
-        
-        box(title=span(icon("fal fa-dna"), paste0("Circles under ", circ_size,"bp")),width=8, height = 460, background = "maroon",solidHeader = TRUE,
-            
+        box(title=span(icon("circle-o"), paste0("Circles under ", circ_size,"bp")),width=9, height = 460,solidHeader = TRUE,background="maroon",
             renderPlotly({
                 fig <- data_circ_small() %>%
                     plot_ly(type = 'scatter',
@@ -244,21 +253,19 @@ server <- function(input, output,session){
                             hovertemplate = paste("<b>Discordant Reads: %{text}<br>",
                                                   "Split Reads: %{customdata}<br>",
                                                   "Size: %{y:.0} bp <br>"),
-                            showlegend = FALSE
-                    )
+                            showlegend = FALSE)
                 fig <- fig  %>% layout(xaxis = list(
                     title = "Chromosome of origin"), yaxis = list(title="Size (number of base pairs)"))
-                
                 fig
             })
         )
     })
     
     
-    # Box of widgets for extra filtering the plot
+    # BOX OF FILTERS FOR THE PLOT - SMALL CIRCLES
     output$filters_small<-renderUI({
         req(input$bedfile)
-        box(title=span(icon("filter"),"Filters"),width=4,
+        box(title=span(icon("filter"),"Filters (for plot)"),width=3,
             sliderInput(inputId = "size_small",
                         "By size (number of base pairs):",
                         min = 10,
@@ -271,13 +278,16 @@ server <- function(input, output,session){
         )
     })
     
+    # "BACK TO GET STARTED" BUTTON 
+    
+    # Render the button
     output$backbuttonsmall<-renderUI({
         req(input$bedfile)
         box(width=2,
         actionButton("click_backsmallcirc","Back to Get Started"),align="center")
     })
     
-    # Click event - Back to "Get Started"
+    # Click event - Change tab 
     observeEvent(input$click_backsmallcirc, {
         back1 <- switch(input$tabs,
                          "smallcirc" = "about")
@@ -285,10 +295,89 @@ server <- function(input, output,session){
         updateTabItems(session, "tabs", back1)
     })
     
+    # TABLE OF GENES IN SMALL CIRCLES
+    output$table_small <- renderUI({
+        req(input$bedfile)
+        
+        # Import the data
+        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
+        names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        circ$size_bp <- circ$end - circ$start
+        circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+        
+        # Process it to get gene list
+        coords<- circ %>% filter (size_bp < circ_size) %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
+        genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
+        genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
+        entrezid <- genes_df$gene_id
+        hs <- org.Hs.eg.db
+        genesymbol_df<- AnnotationDbi::select(hs, 
+                                              keys = entrezid,
+                                              columns = c("ENTREZID", "SYMBOL"),
+                                              keytype = "ENTREZID")
+        names(genesymbol_df)[names(genesymbol_df) == "ENTREZID"] <- "gene_id"
+        gene_list_small<-left_join(genes_df,genesymbol_df)
+        names(gene_list_small)<-c("Chromosome","Start","End","Width","Strand","Gene ID", "Gene Symbol")
+        
+        # Render the data table
+        box(title=span(icon("fal fa-dna"),"Genes in circles"), width = 6, solidHeader = TRUE,
+            DT::renderDataTable({
+                DT::datatable(gene_list_small[, names(gene_list_small) != "Gene ID"],options = list(
+                    autoWidth = TRUE,
+                    searching = FALSE,
+                    pageLength =6 ,
+                    lengthMenu = c(5, 10, 15, 20),
+                    scrollX=TRUE,
+                    columnDefs = list(list(className = 'dt-center', targets = 0:4))
+                ))
+            })
+        )   
+        })
     
-    ##### "View Results" tab server functions - Bigger circles ####  
+    # PLOT - PATHWAY ENRICHMENT - SMALL CIRCLES
+    output$pathway_small<-renderUI({
+        req(input$bedfile)
+        
+        # Impor the data
+        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
+        names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        circ$size_bp <- circ$end - circ$start
+        circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+        
+        # Get genes list
+        coords<- circ %>% filter (size_bp < circ_size) %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
+        genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
+        genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
+        entrezid <- genes_df$gene_id
+        hs <- org.Hs.eg.db
+        genesymbol_df<- AnnotationDbi::select(hs, 
+                                              keys = entrezid,
+                                              columns = c("ENTREZID", "SYMBOL"),
+                                              keytype = "ENTREZID")
+        names(genesymbol_df)[names(genesymbol_df) == "ENTREZID"] <- "gene_id"
+        gene_list_small<-left_join(genes_df,genesymbol_df)
+        
+        
+        # Enrichment to find pathways
+        enrich_small <- term_enrichment(gene_list_small$SYMBOL, resources = "ReactomePathways", all_symbols = cached_coding_genes)
+        
+        # Fix name of pathways for the plot
+        enrich_small$name <-sapply(strsplit(enrich_small$name, split='.', fixed=TRUE), function(x) (x[2]))
+        
+        box(title=span(icon("microscope"),"Enriched pathways (Reactome)"),width=6,
+            renderPlot(ggplot(enrich_small[1:5,],aes(x=q,y=name,fill=p))+
+                           geom_col()+
+                           scale_fill_gradient(low="#F7CFDA",high="#DA1853")+
+                           xlab("-log10 (q-value)")+ylab("")+labs(fill = "p-value")+
+                           theme_minimal()
+
+                )
+            )
+    })
+
+#################################### "View Results" tab server functions - Big circles #####################################  
     
-    # PLOT OUTPUT 
+    # PLOT OUTPUT - BIG CIRCLES
     
     # Import data and make it reactive
     data_circ_big <- reactive({
@@ -309,7 +398,7 @@ server <- function(input, output,session){
         circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
         
         # Add circle id
-        circ <- circ %>% mutate(circle_id = 1:n()) %>% select(circle_id, everything())
+        circ <- circ %>% mutate(circle_id = 1:n()) %>% dplyr::select(circle_id, everything())
         
         # Add size of circle (number of bp)
         circ$size_bp <- circ$end - circ$start
@@ -321,11 +410,11 @@ server <- function(input, output,session){
         data_circ_big<- filter(circ, between(size_bp, input$size_big[1], input$size_big[2]), quality == input$quality_big)
     })
     
-    # Plot for big circles
+    # Plot of big circles
     output$plot_results_big <- renderUI({
         req(input$bedfile)
         
-        box(title=span(icon("fal fa-dna"), paste0( "Circles over ", circ_size,"bp")),width=8, height = 480, background = "purple",solidHeader = TRUE,
+        box(title=span(icon("fal fa-dna"), paste0( "Circles over ", circ_size,"bp")),width=9, height = 480, background = "purple",solidHeader = TRUE,
             
             renderPlotly({
                 fig <- data_circ_big() %>%
@@ -353,10 +442,10 @@ server <- function(input, output,session){
     })
     
     
-    # Box of widgets for extra filtering the plot
+    # BOX OF FILTERS FOR THE PLOT - BIG CIRCLES
     output$filters_big<-renderUI({
         req(input$bedfile)
-        box(title=span(icon("filter"), "Filters"),width=3,
+        box(title=span(icon("filter"), "Filters (for plot)"),width=3,
             sliderInput(inputId = "size_big",
                         "By size (number of base pairs):",
                         min = circ_size,
@@ -369,7 +458,9 @@ server <- function(input, output,session){
         )
     })
     
+    # "BACK TO GET STARTED" BUTTON 
     
+    #Render the button
     output$backbuttonbig<-renderUI({
         req(input$bedfile)
         box(width=2,
@@ -383,6 +474,92 @@ server <- function(input, output,session){
         
         updateTabItems(session, "tabs", back2)
     })
+    
+    # TABLE OF GENES IN BIG CIRCLES 
+    output$table_big <- renderUI({
+        req(input$bedfile)
+        
+        # Import the data
+        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
+        names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        circ$size_bp <- circ$end - circ$start
+        circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+        
+        # Process it to get gene list
+        coords<- circ %>% filter (size_bp > circ_size) %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
+        genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
+        genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
+        entrezid <- genes_df$gene_id
+        hs <- org.Hs.eg.db
+        genesymbol_df<- AnnotationDbi::select(hs, 
+                                              keys = entrezid,
+                                              columns = c("ENTREZID", "SYMBOL"),
+                                              keytype = "ENTREZID")
+        names(genesymbol_df)[names(genesymbol_df) == "ENTREZID"] <- "gene_id"
+        gene_list_big<-left_join(genes_df,genesymbol_df)
+        names(gene_list_big)<-c("Chromosome","Start","End","Width","Strand","Gene ID", "Gene Symbol")
+        
+        # Render the data table
+        box(title=span(icon("fal fa-dna"),"Genes in circles"), width = 6, solidHeader = TRUE,
+            DT::renderDataTable({
+                DT::datatable(gene_list_big[, names(gene_list_big) != "Gene ID"],options = list(
+                    autoWidth = TRUE,
+                    searching = FALSE,
+                    pageLength =6 ,
+                    lengthMenu = c(5, 10, 15, 20),
+                    scrollX=TRUE,
+                    columnDefs = list(list(className = 'dt-center', targets = 0:4))
+                ))
+            })
+        )   
+    })
+    
+    # PLOT - PATHWAY ENRICHMENT
+    output$pathway_big<-renderUI({
+        req(input$bedfile)
+        
+        # Impor the data
+        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
+        names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        circ$size_bp <- circ$end - circ$start
+        circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+        
+        # Get genes list
+        coords<- circ %>% filter (size_bp > circ_size) %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
+        genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
+        genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
+        entrezid <- genes_df$gene_id
+        hs <- org.Hs.eg.db
+        genesymbol_df<- AnnotationDbi::select(hs, 
+                                              keys = entrezid,
+                                              columns = c("ENTREZID", "SYMBOL"),
+                                              keytype = "ENTREZID")
+        names(genesymbol_df)[names(genesymbol_df) == "ENTREZID"] <- "gene_id"
+        gene_list_big<-left_join(genes_df,genesymbol_df)
+        
+        
+        # Enrichment to find pathways
+        enrich_big <- term_enrichment(gene_list_big$SYMBOL, resources = "ReactomePathways", all_symbols = cached_coding_genes)
+        
+        # Fix name of pathways for the plot
+        enrich_big$name <-sapply(strsplit(enrich_big$name, split='.', fixed=TRUE), function(x) (x[2]))
+        
+        box(title=span(icon("microscope"),"Enriched pathways (Reactome)"),width=6,
+            renderPlot(ggplot(enrich_big[1:5,],aes(x=q,y=name,fill=p))+
+                           geom_col()+
+                           scale_fill_gradient(low="#CEB9DF",high="#51119E")+
+                           xlab("-log10 (q-value)")+ylab("")+labs(fill = "p-value")+
+                           theme_minimal()
+                       
+            )
+        )
+    })
+    
+    
+    
+    
+    
+    
     
     
     ##### "Circle info" tab server functions ####  

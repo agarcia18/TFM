@@ -381,18 +381,19 @@ library(GenomicRanges)
 library(tidyverse)
 library(org.Hs.eg.db)
 
-circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315401_unknown_circle.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
+circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315423_unknown_circle.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
 
 names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+circ$size_bp <- circ$end - circ$start
+circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
 
-coords<- circ %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame
+coords<- circ %>% filter(quality %in% c("Medium","Good") & size_bp < 5000) %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
 genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
 
 genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
 
 entrezid <- genes_df$gene_id
 
-library(org.Hs.eg.db)
 hs <- org.Hs.eg.db
 genesymbol_df<- AnnotationDbi::select(hs, 
        keys = entrezid,
@@ -406,6 +407,26 @@ gene_list<-left_join(genes_df,genesymbol_df)
 DT::datatable(gene_list)
 ```
 
+```{r}
+library(RITANdata)
+library(RITAN)
+
+my_genes<-gene_list$SYMBOL
+
+resources <- c("ReactomePathways", "KEGG_filtered_canonical_pathways")
+e <- term_enrichment(gene_list$SYMBOL, resources = resources, all_symbols = cached_coding_genes)
+e$name <-  s1 <- sapply(strsplit(e$name, split='.', fixed=TRUE), function(x) (x[2]))
+head(e)
+
+ggplot(e[1:6,],aes(x=p,y=name,fill=p))+
+                           geom_col()+
+                           scale_color_brewer("RdPu")
+                       
+```
+```{r}
+my.dnastring <- as.character(Biostrings::getSeq(BSgenome.Mmusculus.UCSC.mm10, "chr1", 3000000, 3000100))
+
+```
 
 ```{r}
 onecirc<-circ [1,]
@@ -485,4 +506,9 @@ names(listTables(EnsDb.Hsapiens.v75))
     })
     
 ```
+
+```{r}
+
+```
+
 
