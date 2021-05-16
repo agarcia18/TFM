@@ -1,4 +1,6 @@
 # Load required packages 
+source("data.R")
+
 library(shiny)
 library(shinydashboard)
 library(tidyverse)
@@ -414,7 +416,7 @@ server <- function(input, output,session){
     output$plot_results_big <- renderUI({
         req(input$bedfile)
         
-        box(title=span(icon("fal fa-dna"), paste0( "Circles over ", circ_size,"bp")),width=9, height = 480, background = "purple",solidHeader = TRUE,
+        box(title=span(icon("circle-o"), paste0( "Circles over ", circ_size,"bp")),width=9, height = 480, background = "purple",solidHeader = TRUE,
             
             renderPlotly({
                 fig <- data_circ_big() %>%
@@ -565,26 +567,41 @@ server <- function(input, output,session){
     ##### "Circle info" tab server functions ####  
     
     observeEvent(event_data("plotly_click",source="smallcircleSource"), {
-        circletab <- switch(input$tabs,
-                            "smallcirc" = "circle")
+        circletab1 <- switch(input$tabs,
+                             "smallcirc" = "circle")
         
-        updateTabItems(session, "tabs", circletab)
-    })
-    
-    clickData <- reactive({
-        currentEventData <- unlist(event_data(event = "plotly_click", source = "smallcircleSource", priority = "event"))
-    })
-    
-    output$clickDataOut <- renderText({
-        paste("Click data:", paste(names(clickData()), unlist(clickData()), sep = ": ", collapse = " | "))
+        updateTabItems(session, "tabs", circletab1)
     })
     
     observeEvent(event_data("plotly_click",source="smallcircleSource"), {
         output$selected_circle<- renderUI({
-            box(title = "Circle", status="primary",width = 12, solidHeader = TRUE,
-                htmlOutput("clickDataOut"))
+            box(title = "CIRCLE", status="primary",width = 12, solidHeader = TRUE,
+                tableOutput("TableDataOutSmall"))
             
         })
+    })
+
+    clickDataSmall <- reactive({unlist(event_data(event = "plotly_click", source = "smallcircleSource", priority = "event"))
+    })
+    
+    output$TableDataOutSmall <- renderTable({
+        # Impor the data
+        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
+        names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        circ$size_bp <- circ$end - circ$start
+        circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+        # Set chromosome as factor and fix random outputs
+        circ$chrom <- substr(circ$chrom, start = 1, stop = 5)
+        circ$chrom<-str_remove(circ$chrom,"_")
+        circ$chrom<-str_remove(circ$chrom,"chr")
+        circ$chrom <- factor(circ$chrom, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+        
+        chrom_filter_big <- unlist(clickDataSmall()[3])
+        size_filter_big <- unlist(clickDataSmall()[4])
+        sr_filter_big <-unlist(clickDataSmall()[5])
+        
+        circ %>% dplyr::filter (chrom==chrom_filter_big & size_bp==size_filter_big & split_reads==sr_filter_big)
+        
     })
     
     observeEvent(event_data("plotly_click",source="bigcircleSource"), {
@@ -594,21 +611,38 @@ server <- function(input, output,session){
         updateTabItems(session, "tabs", circletab2)
     })
     
-    clickDataBig <- reactive({
-        currentEventData <- unlist(event_data(event = "plotly_click", source = "bigcircleSource", priority = "event"))
-    })
-    
-    output$clickDataOutBig <- renderText({
-        paste("Click data:", paste(names(clickDataBig()), unlist(clickDataBig()), sep = ": ", collapse = " | "))
-    })
-    
     observeEvent(event_data("plotly_click",source="bigcircleSource"), {
         output$selected_circle<- renderUI({
-            box(title = "Circle", status="primary",width = 12, solidHeader = TRUE,
-                htmlOutput("clickDataOutBig"))
+            box(title = "CIRCLE", status="primary",width = 12, solidHeader = TRUE,
+                tableOutput("TableDataOutBig"))
             
         })
     })
+    
+    clickDataBig <- reactive({unlist(event_data(event = "plotly_click", source = "bigcircleSource", priority = "event"))
+    })
+    
+    output$TableDataOutBig <- renderTable({
+        # Impor the data
+        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
+        names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        circ$size_bp <- circ$end - circ$start
+        circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+        # Set chromosome as factor and fix random outputs
+        circ$chrom <- substr(circ$chrom, start = 1, stop = 5)
+        circ$chrom<-str_remove(circ$chrom,"_")
+        circ$chrom<-str_remove(circ$chrom,"chr")
+        circ$chrom <- factor(circ$chrom, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+        
+        chrom_filter_big <- unlist(clickDataBig()[3])
+        size_filter_big <- unlist(clickDataBig()[4])
+        sr_filter_big <-unlist(clickDataBig()[5])
+        
+        circ %>% dplyr::filter (chrom==chrom_filter_big & size_bp==size_filter_big & split_reads==sr_filter_big)
+
+    })
+    
+
     
 }
 

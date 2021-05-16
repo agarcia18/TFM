@@ -18,6 +18,7 @@ library(plotly)
 
 
 ```{r}
+library(tidyverse)
 circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315424_unknown_circle.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
 
 names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
@@ -32,13 +33,12 @@ circ$chr<-str_remove(circ$chr,"chr")
 circ$chr <- factor(circ$chr, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
 
 # Add circle id
-circ <- circ %>% mutate(circle_id = 1:n()) %>% select(circle_id, everything())
+circ <- circ %>% dplyr::mutate(circle_id = 1:n()) %>% dplyr::select(circle_id, everything())
 
 # Add size of circle (number of bp)
-size_bp <- circ$end - circ$start
-circ<- add_column(circ,size_bp)
-head(circ)
+circ$size_bp <- circ$end - circ$start
 
+head(circ)
 ```
 
 ```{r}
@@ -509,6 +509,187 @@ names(listTables(EnsDb.Hsapiens.v75))
 
 ```{r}
 
+# Create test data.
+data <- data.frame(
+  category=c("A", "B", "C"),
+  count=c(10, 60, 30)
+)
+ 
+# Compute percentages
+data$fraction <- data$count / sum(data$count)
+
+# Compute the cumulative percentages (top of each rectangle)
+data$ymax <- cumsum(data$fraction)
+
+# Compute the bottom of each rectangle
+data$ymin <- c(0, head(data$ymax, n=-1))
+
+# Compute label position
+data$labelPosition <- (data$ymax + data$ymin) / 2
+
+# Compute a good label
+data$label <- paste0(data$category, "\n value: ", data$count)
+ggplot(data, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=category)) +
+  geom_rect() +
+  geom_label( x=3.5, aes(y=labelPosition, label=label), size=6) +
+  scale_fill_brewer(palette=4) +
+  coord_polar(theta="y") +
+  xlim(c(2, 4)) +
+  theme_void() +
+  theme(legend.position = "none")
+```
+
+```{r}
+library(biomaRt)
+ensembl = useMart("ensembl",dataset="hsapiens_gene_ensembl")
+result = getSequence(chromosome=2, start=19206729, end=19206729,type="entrezgene",seqType="gene_exon_intron", mart=ensembl)
+
+library(seqinr)
+seq = read.fasta("chr1.fa",seqtype="DNA")
+geneSeq = seq[[1]][geneStart:geneStop]
+```
+
+
+
+```{r}
+library(Biostrings)
+library(BSgenome.Hsapiens.UCSC.hg19)
+my.dnastring <- as.character(Biostrings::getSeq(BSgenome.Hsapiens.UCSC.hg19, "chr2", 19206729, 19210302))
+
+my.dnastring$position <- c(1:length(my.dnastring$x))
+my.dnastring$value <- rep(50,length(my.dnastring$x))
+my.dnastring
+
+library(ggplot2)
+ggplot(my.dnastring,aes(x=position,y=value,fill=x))+
+  geom_bar(stat="identity",width = 0.2, position = position_dodge(0.2))+
+  scale_fill_manual(values=c("A"="#E74C3C","T"="#8ADF0F","G"="#F4D03F","C"="#1F618D"))+
+  ylim(-100,50)+
+  coord_polar(start=0)+
+  theme_bw() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"),legend.position="none")
+```
+
+```{r}
+# The doughnut function permits to draw a donut plot
+doughnut <-
+function (x, labels = names(x), edges = 200, outer.radius = 0.8,
+          inner.radius=0.6, clockwise = FALSE,
+          init.angle = if (clockwise) 90 else 0, density = NULL,
+          angle = 45, col = NULL, border = FALSE, lty = NULL,
+          main = NULL, ...)
+{
+    if (!is.numeric(x) || any(is.na(x) | x < 0))
+        stop("'x' values must be positive.")
+    if (is.null(labels))
+        labels <- as.character(seq_along(x))
+    else labels <- as.graphicsAnnot(labels)
+    x <- c(0, cumsum(x)/sum(x))
+    dx <- diff(x)
+    nx <- length(dx)
+    plot.new()
+    pin <- par("pin")
+    xlim <- ylim <- c(-1, 1)
+    if (pin[1L] > pin[2L])
+        xlim <- (pin[1L]/pin[2L]) * xlim
+    else ylim <- (pin[2L]/pin[1L]) * ylim
+    plot.window(xlim, ylim, "", asp = 1)
+    if (is.null(col))
+        col <- if (is.null(density))
+          palette()
+        else par("fg")
+    col <- rep(col, length.out = nx)
+    border <- rep(border, length.out = nx)
+    lty <- rep(lty, length.out = nx)
+    angle <- rep(angle, length.out = nx)
+    density <- rep(density, length.out = nx)
+    twopi <- if (clockwise)
+        -2 * pi
+    else 2 * pi
+    t2xy <- function(t, radius) {
+        t2p <- twopi * t + init.angle * pi/180
+        list(x = radius * cos(t2p),
+             y = radius * sin(t2p))
+    }
+    for (i in 1L:nx) {
+        n <- max(2, floor(edges * dx[i]))
+        P <- t2xy(seq.int(x[i], x[i + 1], length.out = n),
+                  outer.radius)
+        polygon(c(P$x, 0), c(P$y, 0), density = density[i],
+                angle = angle[i], border = border[i],
+                col = col[i], lty = lty[i])
+        Pout <- t2xy(mean(x[i + 0:1]), outer.radius)
+        lab <- as.character(labels[i])
+        if (!is.na(lab) && nzchar(lab)) {
+            lines(c(1, 1.05) * Pout$x, c(1, 1.05) * Pout$y)
+            text(1.1 * Pout$x, 1.1 * Pout$y, labels[i],
+                 xpd = TRUE, adj = ifelse(Pout$x < 0, 1, 0),
+                 ...)
+        }
+        ## Add white disc          
+        Pin <- t2xy(seq.int(0, 1, length.out = n*nx),
+                  inner.radius)
+        polygon(Pin$x, Pin$y, density = density[i],
+                angle = angle[i], border = border[i],
+                col = "white", lty = lty[i])
+    }
+
+    title(main = main, ...)
+    invisible(NULL)
+}
+
+
+# Let's use the function, it works like PiePlot !
+# inner.radius controls the width of the ring!
+doughnut( c(3,5,9,12) , inner.radius=0.5, col=c(rgb(0.2,0.2,0.4,0.5), rgb(0.8,0.2,0.4,0.5), rgb(0.2,0.9,0.4,0.4) , rgb(0.0,0.9,0.8,0.4)) )
+```
+```{r}
+library(tidyverse)
+circ <- as.data.frame(read.table("C:/Users/ainho/eccDNA/BED/SRR6315424_unknown_circle.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
+
+names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+
+# Add quality levels (score < 10 = Bad, score < 50 = Low, score < 200 = Medium, score > 200 = Good)
+    circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+    
+# Set chr as factor
+circ$chrom <- substr(circ$chr, start = 1, stop = 5)
+circ$chrom<-str_remove(circ$chr,"_")
+circ$chrom<-str_remove(circ$chr,"chr")
+circ$chrom <- factor(circ$chr, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+
+# Add circle id
+circ <- circ %>% dplyr::mutate(circle_id = 1:n()) %>% dplyr::select(circle_id, everything())
+
+# Add size of circle (number of bp)
+circ$size_bp <- circ$end - circ$start
+
+selected_circle <- circ %>% dplyr::filter (chrom==1 & size_bp==76 & split_reads==0)
+
+selected_circle
+
+coords<- circ %>% filter (size_bp > circ_size) %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
+        genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
+        genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
+        entrezid <- genes_df$gene_id
+        hs <- org.Hs.eg.db
+        genesymbol_df<- AnnotationDbi::select(hs, 
+                                              keys = entrezid,
+                                              columns = c("ENTREZID", "SYMBOL"),
+                                              keytype = "ENTREZID")
+        names(genesymbol_df)[names(genesymbol_df) == "ENTREZID"] <- "gene_id"
+        gene_list_big<-left_join(genes_df,genesymbol_df)
+        names(gene_list_big)<-c("Chromosome","Start","End","Width","Strand","Gene ID", "Gene Symbol")
+        
+```
+
+```{r}
+library(circlize)
+sectors = c("d", "f", "e", "c", "g", "b", "a")
+s1 = factor(sectors)
+circos.initialize(s1, xlim = c(0, 1))
+s2 = factor(sectors, levels = sectors)
+circos.initialize(s2, xlim = c(0, 1))
 ```
 
 
