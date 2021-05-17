@@ -1,6 +1,6 @@
-# Load required packages 
-source("data.R")
 
+source("data.R")
+# Load required packages 
 library(shiny)
 library(shinydashboard)
 library(tidyverse)
@@ -11,6 +11,8 @@ library(GenomicRanges)
 library(org.Hs.eg.db)
 library(RITANdata)
 library(RITAN)
+library(Biostrings)
+library(BSgenome.Hsapiens.UCSC.hg19)
 
 # SIZE FILTERING
 circ_size <- 5000
@@ -42,7 +44,7 @@ ui <- dashboardPage(
                 fluidRow(HTML('<center><img src="logo.png"></center>'),
                              br(),br(),
                         box(width = 12, solidHeader = TRUE,
-                        "Wellcome to Visual eccDNA. This is an app for dynamic data visualization of eccDNA output files. Start selecting a BED file and this page will show an overview of the results. For better understanding of the output, circles will be separated by size. You can press the buttons View Results, and you will be able to see further information about the DNA circles contained in your file."
+                        "Wellcome to Visual eccDNA. This is an app for dynamic data visualization of Extrachromosomal Circular DNA (eccDNA) output files. Start selecting a BED file and this page will show an overview of the results. For better understanding of the output, circles will be separated by size. You can press the buttons View Results, and you will be able to see further information about the DNA circles contained in your file."
                     )),
                     fluidRow(
                             box(title= "Upload a Circle BED file with output:",fileInput("bedfile","Choose file:"), status="primary"),
@@ -113,7 +115,7 @@ server <- function(input, output,session){
         circ })
 
     
-    #################################### "Get Started" tab server functions #################################### 
+#################################### "Get Started" tab server functions #################################### 
     
     # TOTAL CIRCLES VALUEBOX
     output$total <- renderUI({
@@ -308,7 +310,7 @@ server <- function(input, output,session){
         circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
         
         # Process it to get gene list
-        coords<- circ %>% filter (size_bp < circ_size) %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
+        coords<- circ %>% filter (size_bp < circ_size & quality !="Bad") %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
         genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
         genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
         entrezid <- genes_df$gene_id
@@ -322,7 +324,7 @@ server <- function(input, output,session){
         names(gene_list_small)<-c("Chromosome","Start","End","Width","Strand","Gene ID", "Gene Symbol")
         
         # Render the data table
-        box(title=span(icon("fal fa-dna"),"Genes in circles"), width = 6, solidHeader = TRUE,
+        box(title=span(icon("fal fa-dna"),"Genes in circles"), width = 7, solidHeader = TRUE,
             DT::renderDataTable({
                 DT::datatable(gene_list_small[, names(gene_list_small) != "Gene ID"],options = list(
                     autoWidth = TRUE,
@@ -330,8 +332,8 @@ server <- function(input, output,session){
                     pageLength =6 ,
                     lengthMenu = c(5, 10, 15, 20),
                     scrollX=TRUE,
-                    columnDefs = list(list(className = 'dt-center', targets = 0:4))
-                ))
+                    columnDefs = list(list(className = 'dt-center', targets = 0:5))
+                )) %>% DT::formatStyle(columns = colnames(.), fontSize = '8pt')
             })
         )   
         })
@@ -340,14 +342,14 @@ server <- function(input, output,session){
     output$pathway_small<-renderUI({
         req(input$bedfile)
         
-        # Impor the data
+        # Import the data
         circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
         names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
         circ$size_bp <- circ$end - circ$start
         circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
         
         # Get genes list
-        coords<- circ %>% filter (size_bp < circ_size) %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
+        coords<- circ %>% filter (size_bp < circ_size & quality!="Bad") %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
         genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
         genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
         entrezid <- genes_df$gene_id
@@ -366,7 +368,7 @@ server <- function(input, output,session){
         # Fix name of pathways for the plot
         enrich_small$name <-sapply(strsplit(enrich_small$name, split='.', fixed=TRUE), function(x) (x[2]))
         
-        box(title=span(icon("microscope"),"Enriched pathways (Reactome)"),width=6,
+        box(title=span(icon("microscope"),"Enriched pathways (Reactome)"),width=5,
             renderPlot(ggplot(enrich_small[1:5,],aes(x=q,y=name,fill=p))+
                            geom_col()+
                            scale_fill_gradient(low="#F7CFDA",high="#DA1853")+
@@ -488,7 +490,7 @@ server <- function(input, output,session){
         circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
         
         # Process it to get gene list
-        coords<- circ %>% filter (size_bp > circ_size) %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
+        coords<- circ %>% filter (size_bp > circ_size & quality!="Bad") %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
         genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
         genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
         entrezid <- genes_df$gene_id
@@ -502,7 +504,7 @@ server <- function(input, output,session){
         names(gene_list_big)<-c("Chromosome","Start","End","Width","Strand","Gene ID", "Gene Symbol")
         
         # Render the data table
-        box(title=span(icon("fal fa-dna"),"Genes in circles"), width = 6, solidHeader = TRUE,
+        box(title=span(icon("fal fa-dna"),"Genes in circles"), width = 7, solidHeader = TRUE,
             DT::renderDataTable({
                 DT::datatable(gene_list_big[, names(gene_list_big) != "Gene ID"],options = list(
                     autoWidth = TRUE,
@@ -520,14 +522,14 @@ server <- function(input, output,session){
     output$pathway_big<-renderUI({
         req(input$bedfile)
         
-        # Impor the data
+        # Import the data 
         circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
         names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
         circ$size_bp <- circ$end - circ$start
         circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
         
         # Get genes list
-        coords<- circ %>% filter (size_bp > circ_size) %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
+        coords<- circ %>% filter (size_bp > circ_size & quality!="Bad") %>% dplyr::select(chrom,start,end) %>% makeGRangesFromDataFrame 
         genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
         genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
         entrezid <- genes_df$gene_id
@@ -546,7 +548,7 @@ server <- function(input, output,session){
         # Fix name of pathways for the plot
         enrich_big$name <-sapply(strsplit(enrich_big$name, split='.', fixed=TRUE), function(x) (x[2]))
         
-        box(title=span(icon("microscope"),"Enriched pathways (Reactome)"),width=6,
+        box(title=span(icon("microscope"),"Enriched pathways (Reactome)"),width=5,
             renderPlot(ggplot(enrich_big[1:5,],aes(x=q,y=name,fill=p))+
                            geom_col()+
                            scale_fill_gradient(low="#CEB9DF",high="#51119E")+
@@ -558,14 +560,12 @@ server <- function(input, output,session){
     })
     
     
+####################################  "Circle info" tab server functions #################################### 
+
+# As we have two plots of output (small & big circles), this page will be reactive to both of them
     
-    
-    
-    
-    
-    
-    ##### "Circle info" tab server functions ####  
-    
+    ## SOURCE: SMALL CIRCLES PLOT
+    # Change tab and render info when clicking in the plot of small circles 
     observeEvent(event_data("plotly_click",source="smallcircleSource"), {
         circletab1 <- switch(input$tabs,
                              "smallcirc" = "circle")
@@ -575,35 +575,139 @@ server <- function(input, output,session){
     
     observeEvent(event_data("plotly_click",source="smallcircleSource"), {
         output$selected_circle<- renderUI({
-            box(title = "CIRCLE", status="primary",width = 12, solidHeader = TRUE,
-                tableOutput("TableDataOutSmall"))
+            fluidRow(
+                box(title = "CIRCLE", status="primary",width = 12, solidHeader = TRUE,
+                    tableOutput("TableDataOutSmall"),
+                    plotOutput("CirclePlotSmall")),
+                box(title=span(icon("fal fa-dna"),"GENOMIC DATA"), status="primary",width = 12, solidHeader = TRUE,
+                    dataTableOutput("GenesSmall"))
+            )
             
         })
     })
-
+    
+    
+    # Get the data from the plot click
     clickDataSmall <- reactive({unlist(event_data(event = "plotly_click", source = "smallcircleSource", priority = "event"))
     })
     
+    # SELECTED CIRCLE INFORMATION
     output$TableDataOutSmall <- renderTable({
-        # Impor the data
+        # Import the data file and process it
         circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
         names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
         circ$size_bp <- circ$end - circ$start
         circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
-        # Set chromosome as factor and fix random outputs
         circ$chrom <- substr(circ$chrom, start = 1, stop = 5)
         circ$chrom<-str_remove(circ$chrom,"_")
         circ$chrom<-str_remove(circ$chrom,"chr")
         circ$chrom <- factor(circ$chrom, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
         
-        chrom_filter_big <- unlist(clickDataSmall()[3])
-        size_filter_big <- unlist(clickDataSmall()[4])
-        sr_filter_big <-unlist(clickDataSmall()[5])
-        
-        circ %>% dplyr::filter (chrom==chrom_filter_big & size_bp==size_filter_big & split_reads==sr_filter_big)
-        
+        # Use data from the plot to filter
+        chrom_filter_small <- unlist(clickDataSmall()[3])
+        size_filter_small <- unlist(clickDataSmall()[4])
+        sr_filter_small <-unlist(clickDataSmall()[5])
+    
+        circ %>% dplyr::filter (chrom==chrom_filter_small & size_bp==size_filter_small & split_reads==sr_filter_small) %>% dplyr::select(chrom,start,end,discordant_reads,split_reads,score,coverage_mean,size_bp) %>% rename(Chromosome=chrom,Start=start,End=end,DiscordantReads=discordant_reads,SplitReads=split_reads,Score=score,Coverage=coverage_mean,Size=size_bp)
     })
     
+    # CIRCULAR PLOT
+    output$CirclePlotSmall <-renderPlot({
+        # Import the data file and process it
+        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
+        names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        circ$size_bp <- circ$end - circ$start
+        circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+        circ$chrom <- substr(circ$chrom, start = 1, stop = 5)
+        circ$chrom<-str_remove(circ$chrom,"_")
+        circ$chrom<-str_remove(circ$chrom,"chr")
+        circ$chrom <- factor(circ$chrom, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+        
+        # Use data from the plot to filter
+        chrom_filter_small <- unlist(clickDataSmall()[3])
+        size_filter_small <- unlist(clickDataSmall()[4])
+        sr_filter_small <-unlist(clickDataSmall()[5])
+        
+        selected_circ<-circ %>% dplyr::filter (chrom==chrom_filter_small & size_bp==size_filter_small & split_reads==sr_filter_small)
+        
+        # Use Biostrings to get sequence
+        my.dnastring <- Biostrings::getSeq(BSgenome.Hsapiens.UCSC.hg19, paste0("chr",selected_circ[,1]), selected_circ[,2], selected_circ[,3])
+        n<-as.vector(alphabetFrequency(my.dnastring)[1:4])
+        
+        # Make a data frame 
+        base <-c("A","C","G","T")
+        data<-data.frame(base,n)
+        data$fraction <- data$n / sum(data$n) # Percentages
+        data$ymax <- cumsum(data$fraction) # Cumulative percentages (top of each rectangle) 
+        data$ymin <- c(0, head(data$ymax, n=-1)) # Bottom of each rectangle
+        data$labelPosition <- (data$ymax + data$ymin) / 2 # Label position
+        data$label <- paste0(data$base,":\n ",(round((data$fraction)*100,2)),"%") # Label
+        
+        # Use data frame to make circular plot
+        ggplot(data, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=base)) +
+            geom_rect() +
+            geom_label( x=3.5, aes(y=labelPosition, label=label), size=6) +
+            scale_fill_brewer(palette=4) +
+            coord_polar(theta="y") +
+            xlim(c(1, 4)) +
+            theme_void() +
+            theme(legend.position = "none")
+    })
+    
+    # TABLE WITH GENES IN CIRCLE
+    output$GenesSmall<-  DT::renderDataTable({
+        # Import an process the data file
+        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
+        names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        circ$size_bp <- circ$end - circ$start
+        circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+        circ$chrom <- substr(circ$chrom, start = 1, stop = 5)
+        circ$chrom<-str_remove(circ$chrom,"_")
+        circ$chrom<-str_remove(circ$chrom,"chr")
+        circ$chrom <- factor(circ$chrom, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+        
+        # Use the data from the previuos plot to filter
+        chrom_filter_small <- unlist(clickDataSmall()[3])
+        size_filter_small <- unlist(clickDataSmall()[4])
+        sr_filter_small <-unlist(clickDataSmall()[5])
+        
+        selected_circ <- circ %>% dplyr::filter (chrom==chrom_filter_small & size_bp==size_filter_small & split_reads==sr_filter_small)
+        
+        # Get coordenates 
+        coords<-GRanges(paste0("chr",selected_circ[,1],":",selected_circ[,2],"-",selected_circ[,3]))
+        
+        # Find genes and annotate with gene symbols
+        genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
+        genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
+        entrezid <- genes_df$gene_id
+        hs <- org.Hs.eg.db
+        genesymbol_df<- AnnotationDbi::select(hs, 
+                                              keys = entrezid,
+                                              columns = c("ENTREZID", "SYMBOL"),
+                                              keytype = "ENTREZID")
+        names(genesymbol_df)[names(genesymbol_df) == "ENTREZID"] <- "gene_id"
+        genes_smallcircle<-left_join(genes_df,genesymbol_df)
+        
+        # Fix names of columns for the table
+        names(genes_smallcircle)<-c("Chromosome","Start","End","Width","Strand","Gene ID","Gene Symbol")
+        
+        # Make a null data frame
+        null_gene<- as.data.frame("No genes (or parts of genes) found in this circle.")
+        
+        # Show results
+        if(nrow(genes_smallcircle) == 0){
+            DT::datatable(null_gene,
+                          options = list(
+                              searching = FALSE))
+        }else{
+            DT::datatable(genes_smallcircle,options = list(
+                searching = FALSE))
+        }
+    })
+        
+    
+    ## SOURCE: BIG CIRCLES PLOT
+    # Change tab and render info when clicking in the plot of big circles 
     observeEvent(event_data("plotly_click",source="bigcircleSource"), {
         circletab2 <- switch(input$tabs,
                             "bigcirc" = "circle")
@@ -613,37 +717,136 @@ server <- function(input, output,session){
     
     observeEvent(event_data("plotly_click",source="bigcircleSource"), {
         output$selected_circle<- renderUI({
-            box(title = "CIRCLE", status="primary",width = 12, solidHeader = TRUE,
-                tableOutput("TableDataOutBig"))
+            fluidRow(
+                box(title=span(icon("circle-o"),"CIRCLE"), status="primary",width = 12, solidHeader = TRUE,
+                    tableOutput("TableDataOutBig"),
+                    plotOutput("CirclePlotBig")),
+                box(title=span(icon("fal fa-dna"),"GENOMIC DATA"), status="primary",width = 12, solidHeader = TRUE,
+                    dataTableOutput("GenesBig")))
             
         })
     })
     
+    # Get the data from the plot click
     clickDataBig <- reactive({unlist(event_data(event = "plotly_click", source = "bigcircleSource", priority = "event"))
     })
     
+    # SELECTED CIRCLE INFORMATION
     output$TableDataOutBig <- renderTable({
-        # Impor the data
+        # Import an process the data file
         circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
         names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
         circ$size_bp <- circ$end - circ$start
         circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
-        # Set chromosome as factor and fix random outputs
         circ$chrom <- substr(circ$chrom, start = 1, stop = 5)
         circ$chrom<-str_remove(circ$chrom,"_")
         circ$chrom<-str_remove(circ$chrom,"chr")
         circ$chrom <- factor(circ$chrom, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
         
+        # Use the data from the previuos plot to filter
+        chrom_filter_big <- unlist(clickDataBig()[3])
+        size_filter_big <- unlist(clickDataBig()[4])
+        sr_filter_big <-unlist(clickDataBig()[5])
+        circ %>% dplyr::filter (chrom==chrom_filter_big & size_bp==size_filter_big & split_reads==sr_filter_big) %>% dplyr::select(chrom,start,end,discordant_reads,split_reads,score,coverage_mean,size_bp) %>% rename(Chromosome=chrom,Start=start,End=end,DiscordantReads=discordant_reads,SplitReads=split_reads,Score=score,Coverage=coverage_mean,Size=size_bp)
+    })
+    
+    # CIRCULAR PLOT
+    output$CirclePlotBig <-renderPlot({
+        # Import an process the data file
+        circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
+        names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+        circ$size_bp <- circ$end - circ$start
+        circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+        circ$chrom <- substr(circ$chrom, start = 1, stop = 5)
+        circ$chrom<-str_remove(circ$chrom,"_")
+        circ$chrom<-str_remove(circ$chrom,"chr")
+        circ$chrom <- factor(circ$chrom, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+        
+        # Use the data from the previuos plot to filter
         chrom_filter_big <- unlist(clickDataBig()[3])
         size_filter_big <- unlist(clickDataBig()[4])
         sr_filter_big <-unlist(clickDataBig()[5])
         
-        circ %>% dplyr::filter (chrom==chrom_filter_big & size_bp==size_filter_big & split_reads==sr_filter_big)
-
+        selected_circ<-circ %>% dplyr::filter (chrom==chrom_filter_big & size_bp==size_filter_big & split_reads==sr_filter_big)
+        
+        # Use Biostrings to get sequence
+        my.dnastring <- Biostrings::getSeq(BSgenome.Hsapiens.UCSC.hg19, paste0("chr",selected_circ[,1]), selected_circ[,2], selected_circ[,3])
+        n<-as.vector(alphabetFrequency(my.dnastring)[1:4])
+        
+        # Make a data frame 
+        base <-c("A","C","G","T")
+        data<-data.frame(base,n)
+        data$fraction <- data$n / sum(data$n) # Percentage
+        data$ymax <- cumsum(data$fraction) # Cumulative percentages (top of each rectangle) 
+        data$ymin <- c(0, head(data$ymax, n=-1)) # Bottom of each rectangle
+        data$labelPosition <- (data$ymax + data$ymin) / 2 # Label position
+        data$label <- paste0(data$base,":\n ",(round((data$fraction)*100,2)),"%") # Label
+        
+        # Use data frame to make circular plot
+        ggplot(data, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=base)) +
+            geom_rect() +
+            geom_label( x=3.5, aes(y=labelPosition, label=label), size=6) +
+            scale_fill_brewer(palette=4) +
+            coord_polar(theta="y") +
+            xlim(c(1, 4)) +
+            theme_void() +
+            theme(legend.position = "none")
+        
     })
     
-
     
+    #TABLE WITH GENES IN CIRCLE
+        output$GenesBig<-  DT::renderDataTable({
+            # Import an process the data file
+            circ <-read.table(input$bedfile$datapath,header = FALSE, sep="\t",stringsAsFactors=FALSE)
+            names(circ) <- c("chrom","start","end","discordant_reads","split_reads","score","coverage_mean","coverage_sd","coverage_start", "coverage_end","coverage_cont")
+            circ$size_bp <- circ$end - circ$start
+            circ$quality <- cut(circ$score,breaks=c(-Inf,10,50,200,Inf),labels= c("Bad","Low", "Medium", "Good"),right = FALSE)
+            circ$chrom <- substr(circ$chrom, start = 1, stop = 5)
+            circ$chrom<-str_remove(circ$chrom,"_")
+            circ$chrom<-str_remove(circ$chrom,"chr")
+            circ$chrom <- factor(circ$chrom, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","Un","M","X","Y"))
+            
+            # Use the data from the previuos plot to filter
+            chrom_filter_big <- unlist(clickDataBig()[3])
+            size_filter_big <- unlist(clickDataBig()[4])
+            sr_filter_big <-unlist(clickDataBig()[5])
+            
+            selected_circ <- circ %>% dplyr::filter (chrom==chrom_filter_big & size_bp==size_filter_big & split_reads==sr_filter_big)
+            
+            # Get coordenates 
+            coords<-GRanges(paste0("chr",selected_circ[,1],":",selected_circ[,2],"-",selected_circ[,3]))
+            
+            # Find genes and annotate with gene symbols
+            genes <-genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
+            genes_df <- as.data.frame(subsetByOverlaps(genes,coords))
+            entrezid <- genes_df$gene_id
+            hs <- org.Hs.eg.db
+            genesymbol_df<- AnnotationDbi::select(hs, 
+                                                  keys = entrezid,
+                                                  columns = c("ENTREZID", "SYMBOL"),
+                                                  keytype = "ENTREZID")
+            names(genesymbol_df)[names(genesymbol_df) == "ENTREZID"] <- "gene_id"
+            genes_bigcircle<-left_join(genes_df,genesymbol_df)
+            
+            # Fix names of columns for the table
+            names(genes_bigcircle)<-c("Chromosome","Start","End","Width","Strand","Gene ID","Gene Symbol")
+            
+            # Make a null data frame
+            null_gene<- as.data.frame("No genes (or parts of genes) found in this circle.")
+            
+            # Show results
+           if(nrow(genes_bigcircle) == 0){
+               DT::datatable(null_gene,
+                             options = list(
+                   searching = FALSE))
+            }else{
+                DT::datatable(genes_bigcircle,options = list(
+                    searching = FALSE))
+                }
+                
+        })
+
 }
 
 shinyApp(ui=ui, server = server)
