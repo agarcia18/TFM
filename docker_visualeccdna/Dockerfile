@@ -1,4 +1,4 @@
-# Dockerfile for scShiny-seq
+# Dockerfile for eccDNA
 #
 # R 4.1.0 shiny-server app exposed in 3838
 # 
@@ -7,8 +7,8 @@
 
 
 # docker build -t visualecc .
-# docker run --rm -p 3845:3845 --name test visualecc 
-# docker exec -it test /bin/bash
+# docker run --rm -p 3845:3845 --name visualecc visualecc 
+# docker exec -it visualecc /bin/bash
 
 FROM rocker/shiny:4.1.0
 # system libraries of general use
@@ -23,8 +23,10 @@ RUN apt-get update && apt-get install -y \
     libssh2-1-dev \
     libxml2 \
     libxml2-dev \
+    libv8-dev libnode-dev \
     r-cran-xml \
-    r-cran-igraph
+    r-cran-igraph \
+    r-cran-rglpk r-cran-rstan
   
 ## rm -rf /var/lib/apt/lists/*
 # install R packages required 
@@ -62,6 +64,6 @@ EXPOSE 3845
 RUN sudo chown -R shiny:shiny /srv/shiny-server
 
 # run app
-CMD ["/usr/bin/shiny-server.sh"]
+# CMD ["/usr/bin/shiny-server.sh"]
 
 
