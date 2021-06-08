@@ -1,20 +1,6 @@
 # Load required packages
-library(shiny)
-library(shinydashboard)
-library(dplyr)
-library(ggplot2)
-library(stringr)
-library(plotly)
-library(DT)
-library(TxDb.Hsapiens.UCSC.hg38.knownGene)
-library(GenomicRanges)
-library(org.Hs.eg.db)
-library(RITANdata)
-library(RITAN)
-library(Biostrings)
-library(BSgenome.Hsapiens.UCSC.hg38)
+source("./install_packages.R")
 
-launch_VisualEccDNA<-function(){
 # SIZE FILTERING
 circ_size <- 5000
 range_small <- c(250,2500)
@@ -860,4 +846,4 @@ server <- function(input, output,session){
 }
 
 shinyApp(ui=ui, server = server)
-}
+

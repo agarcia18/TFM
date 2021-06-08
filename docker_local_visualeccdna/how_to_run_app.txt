@@ -1,0 +1,7 @@
+# Install Docker in your computer
+
+# Build image
+docker build -t my-shinyapp-image . 
+
+# Start a container
+docker run -d --rm -p 3838:3838 my-shinyapp-image
