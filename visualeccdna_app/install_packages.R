@@ -30,6 +30,6 @@ bioc_using<-function(...) {
   }
 
 
-using("shiny","shinydashboard","dplyr","ggplot2","stringr","plotly","DT")
+using("shinydashboard","dplyr","ggplot2","stringr","plotly","DT")
 install.packages("BiocManager",version=3.13)
 bioc_using("TxDb.Hsapiens.UCSC.hg38.knownGene","GenomicRanges","org.Hs.eg.db","RITANdata","RITAN","Biostrings","BSgenome.Hsapiens.UCSC.hg38")
