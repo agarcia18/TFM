@@ -1,6 +1,6 @@
 # Visual eccDNA 
 ##  An interactive Shiny Dashboard for extrachromosomal circular DNA data output visualization and analysis
-![logo]logo.png
+![logo](https://i.ibb.co/7tj8wsG/logo.png)
 
 ### Bioinformatics & Bioestatistics UOC Master's Final Project 
 ------------
