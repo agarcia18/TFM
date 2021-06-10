@@ -28,7 +28,7 @@ ui <- dashboardPage(
         tabItems(
             tabItem(
                 tabName = "about",
-                fluidRow(HTML('<center><img src="https://i.ibb.co/7tj8wsG/logo.png"></center>'),
+                fluidRow(HTML('<center><img src="logo.png"></center>'),
                              br(),br(),
                         box(width = 12, solidHeader = TRUE,
                         "Wellcome to Visual eccDNA. This is an app for dynamic data visualization of Extrachromosomal Circular DNA (eccDNA) output files. Start selecting a BED file and this page will show an overview of the results. For better understanding of the output, circles will be separated by size. You can press the buttons View Results, and you will be able to see further information about the DNA circles contained in your file."
