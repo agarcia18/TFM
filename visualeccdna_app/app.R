@@ -81,7 +81,7 @@ ui <- dashboardPage(
 
 server <- function(input, output,session){
     # Change options to process bigger files (30MB)
-    options(shiny.maxRequestSize=30*1024^2)
+    options(shiny.maxRequestSize=110*1024^2)
 
 
     # Import data from file and add labels
